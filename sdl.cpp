@@ -7,7 +7,7 @@ PREDICATE(sdl_init_, 1)
 {
   if (SDL_Init(A1.as_uint32_t()) < 0)
   {
-    throw PlException(PlTerm_string(SDL_GetError()));
+    throw PlUnknownError(SDL_GetError());
   }
   return true;
 }
@@ -26,7 +26,7 @@ PREDICATE(sdl_createwindow_, 7)
                                         A7.as_uint32_t());
   if (window == NULL)
   {
-    throw PlException(PlTerm_string(SDL_GetError()));
+    throw PlUnknownError(SDL_GetError());
   }
   return A1.unify_pointer(window);
 }
@@ -44,7 +44,7 @@ PREDICATE(sdl_createrenderer_, 4)
                                               A4.as_uint32_t());
   if (renderer == NULL)
   {
-    throw PlException(PlTerm_string(SDL_GetError()));
+    throw PlUnknownError(SDL_GetError());
   }
   return A1.unify_pointer(renderer);
 }
@@ -59,7 +59,7 @@ PREDICATE(sdl_renderclear, 1)
 {
   if (SDL_RenderClear((SDL_Renderer *) A1.as_pointer()) < 0)
   {
-    throw PlException(PlTerm_string(SDL_GetError()));
+    throw PlUnknownError(SDL_GetError());
   }
   return true;
 }
@@ -94,7 +94,7 @@ PREDICATE(sdl_rendercopy_, 4)
                      (SDL_Texture *) A2.as_pointer(),
                      srcrect_p, dstrect_p) < 0)
   {
-    throw PlException(PlTerm_string(SDL_GetError()));
+    throw PlUnknownError(SDL_GetError());
   }
   return true;
 }
@@ -122,7 +122,7 @@ PREDICATE(img_load_, 2)
   SDL_Surface *surface = IMG_Load(A2.as_string().c_str());
   if (surface == NULL)
   {
-    throw PlException(PlTerm_string(SDL_GetError()));
+    throw PlUnknownError(SDL_GetError());
   }
   return A1.unify_pointer(surface);
 }
@@ -140,7 +140,7 @@ PREDICATE(sdl_createtexturefromsurface_, 3)
                                  (SDL_Surface *) A3.as_pointer());
   if (texture == NULL)
   {
-    throw PlException(PlTerm_string(SDL_GetError()));
+    throw PlUnknownError(SDL_GetError());
   }
   return A1.unify_pointer(texture);
 }
@@ -268,7 +268,7 @@ PREDICATE(sdl_setrenderdrawcolor_, 5)
                              A2.as_uint(),
                              A3.as_uint(), A4.as_uint(), A5.as_uint()) < 0)
   {
-    throw PlException(PlTerm_string(SDL_GetError()));
+    throw PlUnknownError(SDL_GetError());
   }
   return true;
 }
@@ -278,7 +278,7 @@ PREDICATE(sdl_renderdrawrect_, 2)
   const SDL_Rect rect = get_rect(A2);
   if (SDL_RenderDrawRect((SDL_Renderer *) A1.as_pointer(), &rect) < 0)
   {
-    throw PlException(PlTerm_string(SDL_GetError()));
+    throw PlUnknownError(SDL_GetError());
   }
   return true;
 }
@@ -288,7 +288,7 @@ PREDICATE(sdl_renderfillrect_, 2)
   const SDL_Rect rect = get_rect(A2);
   if (SDL_RenderFillRect((SDL_Renderer *) A1.as_pointer(), &rect) < 0)
   {
-    throw PlException(PlTerm_string(SDL_GetError()));
+    throw PlUnknownError(SDL_GetError());
   }
   return true;
 }
