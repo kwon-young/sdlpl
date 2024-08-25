@@ -7,4 +7,4 @@ indent: sdl.cpp
 	indent -bli 0 -npcs -nut sdl.cpp
 
 clean:
-	rm sdl.so
+	$(RM) sdl.so
