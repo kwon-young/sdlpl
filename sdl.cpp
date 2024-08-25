@@ -33,13 +33,13 @@ PREDICATE(sdl_createwindow_, 7)
 
 PREDICATE(sdl_destroywindow, 1)
 {
-  SDL_DestroyWindow((SDL_Window *) A1.as_pointer());
+  SDL_DestroyWindow(static_cast<SDL_Window*>(A1.as_pointer()));
   return true;
 }
 
 PREDICATE(sdl_createrenderer_, 4)
 {
-  SDL_Renderer *renderer = SDL_CreateRenderer((SDL_Window *) A2.as_pointer(),
+  SDL_Renderer *renderer = SDL_CreateRenderer(static_cast<SDL_Window*>(A2.as_pointer()),
                                               A3.as_int(),
                                               A4.as_uint32_t());
   if (renderer == NULL)
@@ -51,13 +51,13 @@ PREDICATE(sdl_createrenderer_, 4)
 
 PREDICATE(sdl_destroyrenderer, 1)
 {
-  SDL_DestroyRenderer((SDL_Renderer *) A1.as_pointer());
+  SDL_DestroyRenderer(static_cast<SDL_Renderer*>(A1.as_pointer()));
   return true;
 }
 
 PREDICATE(sdl_renderclear, 1)
 {
-  if (SDL_RenderClear((SDL_Renderer *) A1.as_pointer()) < 0)
+  if (SDL_RenderClear(static_cast<SDL_Renderer*>(A1.as_pointer())) < 0)
   {
     throw PlUnknownError(SDL_GetError());
   }
@@ -90,8 +90,8 @@ PREDICATE(sdl_rendercopy_, 4)
     dstrect = get_rect(A4);
     dstrect_p = &dstrect;
   }
-  if (SDL_RenderCopy((SDL_Renderer *) A1.as_pointer(),
-                     (SDL_Texture *) A2.as_pointer(),
+  if (SDL_RenderCopy(static_cast<SDL_Renderer*>(A1.as_pointer()),
+                     static_cast<SDL_Texture*>(A2.as_pointer()),
                      srcrect_p, dstrect_p) < 0)
   {
     throw PlUnknownError(SDL_GetError());
@@ -101,7 +101,7 @@ PREDICATE(sdl_rendercopy_, 4)
 
 PREDICATE(sdl_renderpresent, 1)
 {
-  SDL_RenderPresent((SDL_Renderer *) A1.as_pointer());
+  SDL_RenderPresent(static_cast<SDL_Renderer*>(A1.as_pointer()));
   return true;
 }
 
@@ -129,15 +129,15 @@ PREDICATE(img_load_, 2)
 
 PREDICATE(sdl_freesurface, 1)
 {
-  SDL_FreeSurface((SDL_Surface *) A1.as_pointer());
+  SDL_FreeSurface(static_cast<SDL_Surface*>(A1.as_pointer()));
   return true;
 }
 
 PREDICATE(sdl_createtexturefromsurface_, 3)
 {
   SDL_Texture *texture =
-    SDL_CreateTextureFromSurface((SDL_Renderer *) A2.as_pointer(),
-                                 (SDL_Surface *) A3.as_pointer());
+    SDL_CreateTextureFromSurface(static_cast<SDL_Renderer*>(A2.as_pointer()),
+                                 static_cast<SDL_Surface*>(A3.as_pointer()));
   if (texture == NULL)
   {
     throw PlUnknownError(SDL_GetError());
@@ -147,7 +147,7 @@ PREDICATE(sdl_createtexturefromsurface_, 3)
 
 PREDICATE(sdl_destroytexture, 1)
 {
-  SDL_DestroyTexture((SDL_Texture *) A1.as_pointer());
+  SDL_DestroyTexture(static_cast<SDL_Texture*>(A1.as_pointer()));
   return true;
 }
 
@@ -264,7 +264,7 @@ PREDICATE(sdl_pollevent_, 1)
 
 PREDICATE(sdl_setrenderdrawcolor_, 5)
 {
-  if (SDL_SetRenderDrawColor((SDL_Renderer *) A1.as_pointer(),
+  if (SDL_SetRenderDrawColor(static_cast<SDL_Renderer*>(A1.as_pointer()),
                              A2.as_uint(),
                              A3.as_uint(), A4.as_uint(), A5.as_uint()) < 0)
   {
@@ -276,7 +276,7 @@ PREDICATE(sdl_setrenderdrawcolor_, 5)
 PREDICATE(sdl_renderdrawrect_, 2)
 {
   const SDL_Rect rect = get_rect(A2);
-  if (SDL_RenderDrawRect((SDL_Renderer *) A1.as_pointer(), &rect) < 0)
+  if (SDL_RenderDrawRect(static_cast<SDL_Renderer*>(A1.as_pointer()), &rect) < 0)
   {
     throw PlUnknownError(SDL_GetError());
   }
@@ -286,7 +286,7 @@ PREDICATE(sdl_renderdrawrect_, 2)
 PREDICATE(sdl_renderfillrect_, 2)
 {
   const SDL_Rect rect = get_rect(A2);
-  if (SDL_RenderFillRect((SDL_Renderer *) A1.as_pointer(), &rect) < 0)
+  if (SDL_RenderFillRect(static_cast<SDL_Renderer*>(A1.as_pointer()), &rect) < 0)
   {
     throw PlUnknownError(SDL_GetError());
   }
