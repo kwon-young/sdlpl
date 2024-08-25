@@ -4,7 +4,7 @@ sdl.so: sdl.cpp
 .PHONY: indent clean
 
 indent: sdl.cpp
-	indent -bli 0 -npcs -nut sdl.cpp
+	clang-format -i -style="{ColumnLimit: 85}" sdl.cpp
 
 clean:
 	$(RM) sdl.so
