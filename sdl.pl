@@ -10,6 +10,25 @@
                 ]).
 :- use_foreign_library(foreign('sdl.so')).
 
+must_be_blob(Type, Term) :-
+   (  blob(Term, Type)
+   -> true
+   ;  type_error(Type, Term)
+   ).
+
+user:portray(Window) :-
+   blob(Window, sdl_window_blob), !,
+   sdl_window_blob_portray(current_output, Window).
+user:portray(Renderer) :-
+   blob(Renderer, sdl_renderer_blob), !,
+   sdl_renderer_blob_portray(current_output, Renderer).
+user:portray(Surface) :-
+   blob(Surface, sdl_surface_blob), !,
+   sdl_surface_blob_portray(current_output, Surface).
+user:portray(Texture) :-
+   blob(Texture, sdl_texture_blob), !,
+   sdl_texture_blob_portray(current_output, Texture).
+
 sdl_init_flag(timer, 0x00000001).
 sdl_init_flag(audio, 0x00000010).
 sdl_init_flag(video, 0x00000020).
@@ -91,7 +110,7 @@ sdl_renderer_flag(targettexture, 0x00000008).
 
 sdl_createrenderer(Renderer, Window, Index, Flags) :-
    must_be(var, Renderer),
-   must_be(integer, Window),
+   must_be_blob(sdl_window_blob, Window),
    must_be(integer, Index),
    must_be(list(oneof([software, accelerated, presentvsync, targettexture])), Flags),
    maplist(sdl_renderer_flag, Flags, IntFlags),
@@ -119,13 +138,13 @@ img_load(Surface, File) :-
 
 sdl_createtexturefromsurface(Texture, Renderer, Surface) :-
    must_be(var, Texture),
-   must_be(integer, Renderer),
-   must_be(integer, Surface),
+   must_be_blob(sdl_renderer_blob, Renderer),
+   must_be_blob(sdl_surface_blob, Surface),
    sdl_createtexturefromsurface_(Texture, Renderer, Surface).
 
 sdl_rendercopy(Renderer, Texture, Srrect, Dstrect) :-
-   must_be(integer, Renderer),
-   must_be(integer, Texture),
+   must_be_blob(sdl_renderer_blob, Renderer),
+   must_be_blob(sdl_texture_blob, Texture),
    maplist(
       must_be((compound(rect(integer, integer, integer, integer)) ; oneof([null]))),
       [Srrect, Dstrect]),
@@ -145,7 +164,7 @@ sdl_pollevent(Event) :-
    dict_create(Event, Tag, Pairs).
 
 sdl_setrenderdrawcolor(Renderer, R, G, B, A) :-
-   must_be(integer, Renderer),
+   must_be_blob(sdl_renderer_blob, Renderer),
    must_be(between(0, 255), R),
    must_be(between(0, 255), G),
    must_be(between(0, 255), B),
@@ -153,12 +172,12 @@ sdl_setrenderdrawcolor(Renderer, R, G, B, A) :-
    sdl_setrenderdrawcolor_(Renderer, R, G, B, A).
 
 sdl_renderdrawrect(Renderer, Rect) :-
-   must_be(integer, Renderer),
+   must_be_blob(sdl_renderer_blob, Renderer),
    must_be(compound(rect(integer, integer, integer, integer)), Rect),
    sdl_renderdrawrect_(Renderer, Rect).
 
 sdl_renderfillrect(Renderer, Rect) :-
-   must_be(integer, Renderer),
+   must_be_blob(sdl_renderer_blob, Renderer),
    must_be(compound(rect(integer, integer, integer, integer)), Rect),
    sdl_renderfillrect_(Renderer, Rect).
 
@@ -171,15 +190,20 @@ test(init, [forall(sdl_init_flag(Flag, _))]) :-
 pos(1).
 pos(centered).
 pos(undefined).
-test(createwindow, [
+
+test(createwindow_pos, [
       setup(sdl_init([everything])), cleanup(sdl_quit),
-      condition(false),
-      forall((
-         pos(X),
-         pos(Y),
-         sdl_window_flag(Flag, _)))]) :-
+      forall((pos(X), pos(Y)))]) :-
    setup_call_cleanup(
-      sdl_createwindow(Handle, "Title", X, Y, 400, 600, [Flag]),
+      sdl_createwindow(Handle, "Title", X, Y, 400, 600, []),
+      true,
+      sdl_destroywindow(Handle)).
+
+test(createwindow_flag, [
+      setup(sdl_init([everything])), cleanup(sdl_quit),
+      forall((sdl_window_flag(Flag, _), dif(Flag, metal)))]) :-
+   setup_call_cleanup(
+      sdl_createwindow(Handle, "Title", 0, 0, 400, 600, [Flag]),
       true,
       sdl_destroywindow(Handle)).
 

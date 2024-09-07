@@ -3,6 +3,150 @@
 #include <SWI-cpp2.h>
 #include <string>
 
+struct SDLWindowBlob;
+
+static PL_blob_t sdl_window_blob =
+    PL_BLOB_DEFINITION(SDLWindowBlob, "sdl_window_blob");
+
+struct SDLWindowBlob : public PlBlob {
+  SDL_Window *window_;
+
+  explicit SDLWindowBlob() : PlBlob(&sdl_window_blob) {}
+
+  explicit SDLWindowBlob(SDL_Window *window)
+      : PlBlob(&sdl_window_blob), window_(window) {}
+
+  PL_BLOB_SIZE
+
+  void portray(PlStream &strm) const {
+    strm.printf("sdl_window_blob<%p>(%p)", this, window_);
+  }
+
+  void destroy() noexcept {
+    if (window_ != NULL) {
+      SDL_DestroyWindow(window_);
+      window_ = NULL;
+    }
+  }
+
+  virtual ~SDLWindowBlob() noexcept { destroy(); }
+};
+
+PREDICATE(sdl_window_blob_portray, 2) {
+  auto ref = PlBlobV<SDLWindowBlob>::cast_ex(A2, sdl_window_blob);
+  PlStream strm(A1, 0);
+  ref->portray(strm);
+  return true;
+}
+
+struct SDLRendererBlob;
+
+static PL_blob_t sdl_renderer_blob =
+    PL_BLOB_DEFINITION(SDLRendererBlob, "sdl_renderer_blob");
+
+struct SDLRendererBlob : public PlBlob {
+  SDL_Renderer *renderer_;
+
+  explicit SDLRendererBlob() : PlBlob(&sdl_renderer_blob) {}
+
+  explicit SDLRendererBlob(SDL_Renderer *renderer)
+      : PlBlob(&sdl_renderer_blob), renderer_(renderer) {}
+
+  PL_BLOB_SIZE
+
+  void portray(PlStream &strm) const {
+    strm.printf("sdl_renderer_blob<%p>(%p)", this, renderer_);
+  }
+
+  void destroy() noexcept {
+    if (renderer_ != NULL) {
+      SDL_DestroyRenderer(renderer_);
+      renderer_ = NULL;
+    }
+  }
+
+  virtual ~SDLRendererBlob() noexcept { destroy(); }
+};
+
+PREDICATE(sdl_renderer_blob_portray, 2) {
+  auto ref = PlBlobV<SDLRendererBlob>::cast_ex(A2, sdl_renderer_blob);
+  PlStream strm(A1, 0);
+  ref->portray(strm);
+  return true;
+}
+
+struct SDLSurfaceBlob;
+
+static PL_blob_t sdl_surface_blob =
+    PL_BLOB_DEFINITION(SDLSurfaceBlob, "sdl_surface_blob");
+
+struct SDLSurfaceBlob : public PlBlob {
+  SDL_Surface *surface_;
+
+  explicit SDLSurfaceBlob() : PlBlob(&sdl_surface_blob) {}
+
+  explicit SDLSurfaceBlob(SDL_Surface *surface)
+      : PlBlob(&sdl_surface_blob), surface_(surface) {}
+
+  PL_BLOB_SIZE
+
+  void portray(PlStream &strm) const {
+    strm.printf("sdl_surface_blob<%p>(%p)", this, surface_);
+  }
+
+  void destroy() noexcept {
+    if (surface_ != NULL) {
+      SDL_FreeSurface(surface_);
+      surface_ = NULL;
+    }
+  }
+
+  virtual ~SDLSurfaceBlob() noexcept { destroy(); }
+};
+
+PREDICATE(sdl_surface_blob_portray, 2) {
+  auto ref = PlBlobV<SDLSurfaceBlob>::cast_ex(A2, sdl_surface_blob);
+  PlStream strm(A1, 0);
+  ref->portray(strm);
+  return true;
+}
+
+struct SDLTextureBlob;
+
+static PL_blob_t sdl_texture_blob =
+    PL_BLOB_DEFINITION(SDLTextureBlob, "sdl_texture_blob");
+
+struct SDLTextureBlob : public PlBlob {
+  SDL_Texture *texture_;
+
+  explicit SDLTextureBlob() : PlBlob(&sdl_texture_blob) {}
+
+  explicit SDLTextureBlob(SDL_Texture *texture)
+      : PlBlob(&sdl_texture_blob), texture_(texture) {}
+
+  PL_BLOB_SIZE
+
+  void portray(PlStream &strm) const {
+    strm.printf("sdl_texture_blob<%p>(%p)", this, texture_);
+  }
+
+  void destroy() noexcept {
+    if (texture_ != NULL) {
+      SDL_DestroyTexture(texture_);
+      texture_ = NULL;
+    }
+  }
+
+  virtual ~SDLTextureBlob() noexcept { destroy(); }
+};
+
+PREDICATE(sdl_texture_blob_portray, 2) {
+  auto ref = PlBlobV<SDLTextureBlob>::cast_ex(A2, sdl_texture_blob);
+  PlStream strm(A1, 0);
+  ref->portray(strm);
+  return true;
+}
+
 PREDICATE(sdl_init_, 1) {
   if (SDL_Init(A1.as_uint32_t()) < 0) {
     throw PlUnknownError(SDL_GetError());
@@ -22,30 +166,36 @@ PREDICATE(sdl_createwindow_, 7) {
   if (window == NULL) {
     throw PlUnknownError(SDL_GetError());
   }
-  return A1.unify_pointer(window);
+  auto ref = std::unique_ptr<PlBlob>(new SDLWindowBlob(window));
+  return A1.unify_blob(&ref);
 }
 
 PREDICATE(sdl_destroywindow, 1) {
-  SDL_DestroyWindow(static_cast<SDL_Window *>(A1.as_pointer()));
+  auto ref = PlBlobV<SDLWindowBlob>::cast_ex(A1, sdl_window_blob);
+  ref->destroy();
   return true;
 }
 
 PREDICATE(sdl_createrenderer_, 4) {
-  SDL_Renderer *renderer = SDL_CreateRenderer(
-      static_cast<SDL_Window *>(A2.as_pointer()), A3.as_int(), A4.as_uint32_t());
+  auto window_ref = PlBlobV<SDLWindowBlob>::cast_ex(A2, sdl_window_blob);
+  SDL_Renderer *renderer =
+      SDL_CreateRenderer(window_ref->window_, A3.as_int(), A4.as_uint32_t());
   if (renderer == NULL) {
     throw PlUnknownError(SDL_GetError());
   }
-  return A1.unify_pointer(renderer);
+  auto ref = std::unique_ptr<PlBlob>(new SDLRendererBlob(renderer));
+  return A1.unify_blob(&ref);
 }
 
 PREDICATE(sdl_destroyrenderer, 1) {
-  SDL_DestroyRenderer(static_cast<SDL_Renderer *>(A1.as_pointer()));
+  auto ref = PlBlobV<SDLRendererBlob>::cast_ex(A1, sdl_renderer_blob);
+  ref->destroy();
   return true;
 }
 
 PREDICATE(sdl_renderclear, 1) {
-  if (SDL_RenderClear(static_cast<SDL_Renderer *>(A1.as_pointer())) < 0) {
+  auto ref = PlBlobV<SDLRendererBlob>::cast_ex(A1, sdl_renderer_blob);
+  if (SDL_RenderClear(ref->renderer_) < 0) {
     throw PlUnknownError(SDL_GetError());
   }
   return true;
@@ -70,8 +220,9 @@ PREDICATE(sdl_rendercopy_, 4) {
     dstrect = get_rect(A4);
     dstrect_p = &dstrect;
   }
-  if (SDL_RenderCopy(static_cast<SDL_Renderer *>(A1.as_pointer()),
-                     static_cast<SDL_Texture *>(A2.as_pointer()), srcrect_p,
+  auto texture_ref = PlBlobV<SDLTextureBlob>::cast_ex(A2, sdl_texture_blob);
+  auto renderer_ref = PlBlobV<SDLRendererBlob>::cast_ex(A1, sdl_renderer_blob);
+  if (SDL_RenderCopy(renderer_ref->renderer_, texture_ref->texture_, srcrect_p,
                      dstrect_p) < 0) {
     throw PlUnknownError(SDL_GetError());
   }
@@ -79,7 +230,8 @@ PREDICATE(sdl_rendercopy_, 4) {
 }
 
 PREDICATE(sdl_renderpresent, 1) {
-  SDL_RenderPresent(static_cast<SDL_Renderer *>(A1.as_pointer()));
+  auto ref = PlBlobV<SDLRendererBlob>::cast_ex(A1, sdl_renderer_blob);
+  SDL_RenderPresent(ref->renderer_);
   return true;
 }
 
@@ -98,26 +250,31 @@ PREDICATE(img_load_, 2) {
   if (surface == NULL) {
     throw PlUnknownError(SDL_GetError());
   }
-  return A1.unify_pointer(surface);
+  auto ref = std::unique_ptr<PlBlob>(new SDLSurfaceBlob(surface));
+  return A1.unify_blob(&ref);
 }
 
 PREDICATE(sdl_freesurface, 1) {
-  SDL_FreeSurface(static_cast<SDL_Surface *>(A1.as_pointer()));
+  auto ref = PlBlobV<SDLSurfaceBlob>::cast_ex(A1, sdl_surface_blob);
+  ref->destroy();
   return true;
 }
 
 PREDICATE(sdl_createtexturefromsurface_, 3) {
+  auto renderer_ref = PlBlobV<SDLRendererBlob>::cast_ex(A2, sdl_renderer_blob);
+  auto surface_ref = PlBlobV<SDLSurfaceBlob>::cast_ex(A3, sdl_surface_blob);
   SDL_Texture *texture =
-      SDL_CreateTextureFromSurface(static_cast<SDL_Renderer *>(A2.as_pointer()),
-                                   static_cast<SDL_Surface *>(A3.as_pointer()));
+      SDL_CreateTextureFromSurface(renderer_ref->renderer_, surface_ref->surface_);
   if (texture == NULL) {
     throw PlUnknownError(SDL_GetError());
   }
-  return A1.unify_pointer(texture);
+  auto ref = std::unique_ptr<PlBlob>(new SDLTextureBlob(texture));
+  return A1.unify_blob(&ref);
 }
 
 PREDICATE(sdl_destroytexture, 1) {
-  SDL_DestroyTexture(static_cast<SDL_Texture *>(A1.as_pointer()));
+  auto ref = PlBlobV<SDLTextureBlob>::cast_ex(A1, sdl_texture_blob);
+  ref->destroy();
   return true;
 }
 
@@ -220,9 +377,9 @@ PREDICATE(sdl_pollevent_, 1) {
 }
 
 PREDICATE(sdl_setrenderdrawcolor_, 5) {
-  if (SDL_SetRenderDrawColor(static_cast<SDL_Renderer *>(A1.as_pointer()),
-                             A2.as_uint(), A3.as_uint(), A4.as_uint(),
-                             A5.as_uint()) < 0) {
+  auto ref = PlBlobV<SDLRendererBlob>::cast_ex(A1, sdl_renderer_blob);
+  if (SDL_SetRenderDrawColor(ref->renderer_, A2.as_uint(), A3.as_uint(),
+                             A4.as_uint(), A5.as_uint()) < 0) {
     throw PlUnknownError(SDL_GetError());
   }
   return true;
@@ -230,7 +387,8 @@ PREDICATE(sdl_setrenderdrawcolor_, 5) {
 
 PREDICATE(sdl_renderdrawrect_, 2) {
   const SDL_Rect rect = get_rect(A2);
-  if (SDL_RenderDrawRect(static_cast<SDL_Renderer *>(A1.as_pointer()), &rect) < 0) {
+  auto ref = PlBlobV<SDLRendererBlob>::cast_ex(A1, sdl_renderer_blob);
+  if (SDL_RenderDrawRect(ref->renderer_, &rect) < 0) {
     throw PlUnknownError(SDL_GetError());
   }
   return true;
@@ -238,7 +396,8 @@ PREDICATE(sdl_renderdrawrect_, 2) {
 
 PREDICATE(sdl_renderfillrect_, 2) {
   const SDL_Rect rect = get_rect(A2);
-  if (SDL_RenderFillRect(static_cast<SDL_Renderer *>(A1.as_pointer()), &rect) < 0) {
+  auto ref = PlBlobV<SDLRendererBlob>::cast_ex(A1, sdl_renderer_blob);
+  if (SDL_RenderFillRect(ref->renderer_, &rect) < 0) {
     throw PlUnknownError(SDL_GetError());
   }
   return true;
