@@ -1,4 +1,4 @@
-:- use_module(sdl).
+:- use_module(library(sdl)).
 :- use_module(library(macros)).
 
 #define(window_w, 600).
@@ -15,10 +15,12 @@ main :-
    setup_call_cleanup(
       sdl_init([everything]),
       setup_call_cleanup(
-         sdl_createwindow(Window, "pong", centered, centered, #window_w, #window_h,
-                          [vulkan]),
+         sdl_createwindow(Window, "pong", #window_w, #window_h, [vulkan]),
          setup_call_cleanup(
-            sdl_createrenderer(Renderer, Window, -1, [accelerated]),
+            (  catch(sdl_setwindowposition(Window, 0x2fff0000, 0x2fff0000),
+                    error(_, _), true),
+               sdl_createrenderer(Renderer, Window, null)
+            ),
             (
                X is #window_w / 2 - #ball_w / 2,
                Y is #window_h / 2 - #ball_h / 2,
@@ -67,10 +69,10 @@ render(StateIn) :-
    sdl_setrenderdrawcolor(Renderer, 0, 0, 0, 255),
    sdl_renderclear(Renderer),
    sdl_setrenderdrawcolor(Renderer, 255, 255, 255, 255),
-   sdl_renderfillrectf(Renderer, frect(State.ball_x, State.ball_y, #ball_w, #ball_h)),
-   sdl_renderfillrectf(Renderer, frect(0.0, State.p1_y, #paddle_w, #paddle_h)),
+   sdl_renderfillrect(Renderer, rect(State.ball_x, State.ball_y, #ball_w, #ball_h)),
+   sdl_renderfillrect(Renderer, rect(0.0, State.p1_y, #paddle_w, #paddle_h)),
    Paddle_X is #window_w - #paddle_w,
-   sdl_renderfillrectf(Renderer, frect(Paddle_X, State.p2_y, #paddle_w, #paddle_h)),
+   sdl_renderfillrect(Renderer, rect(Paddle_X, State.p2_y, #paddle_w, #paddle_h)),
    sdl_renderpresent(Renderer),
    main_loop(State).
 

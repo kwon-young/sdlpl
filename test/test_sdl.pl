@@ -13,117 +13,124 @@ test(init, [forall(sdl_init_flag(Flag, _))]) :-
    sdl_init([Flag]),
    sdl_quit.
 
-pos(1).
-pos(centered).
-pos(undefined).
-
-test(createwindow_pos, [
-      setup(sdl_init([everything])), cleanup(sdl_quit),
-      forall((pos(X), pos(Y)))]) :-
-   setup_call_cleanup(
-      sdl_createwindow(Handle, "Title", X, Y, 400, 600, []),
-      true,
-      sdl_destroywindow(Handle)).
-
-test(createwindow_flag, [
+test(createwindow, [
       setup(sdl_init([everything])), cleanup(sdl_quit),
       forall((sdl_window_flag(Flag, _), dif(Flag, metal)))]) :-
    setup_call_cleanup(
-      sdl_createwindow(Handle, "Title", 0, 0, 400, 600, [Flag]),
+      sdl_createwindow(Handle, "Title", 400, 600, [Flag]),
       true,
       sdl_destroywindow(Handle)).
 
+test(setwindowposition, [
+      setup((sdl_init([everything]),
+             sdl_createwindow(Handle, "Title", 400, 600, []))),
+      cleanup((sdl_destroywindow(Handle), sdl_quit)),
+      forall((pos(X), pos(Y)))]) :-
+   catch(sdl_setwindowposition(Handle, X, Y), error(_, _), true).
+
+pos(0).
+pos(100).
+pos(0x2fff0000).  % SDL_WINDOWPOS_CENTERED
+pos(0x1fff0000).  % SDL_WINDOWPOS_UNDEFINED
+
 test(createrenderer, [
       setup((sdl_init([everything]),
-             sdl_createwindow(Window, "", 0, 0, 400, 600, [opengl]))),
+             sdl_createwindow(Window, "", 400, 600, [opengl]))),
       cleanup((sdl_destroywindow(Window), sdl_quit))]) :-
    setup_call_cleanup(
-      sdl_createrenderer(Renderer, Window, -1, [accelerated]),
+      sdl_createrenderer(Renderer, Window, null),
       true,
       sdl_destroyrenderer(Renderer)).
 
-test(imginit, [forall(img_init_flag(Flag, _))]) :-
-   setup_call_cleanup(img_init(_, [Flag]), true, img_quit).
+test(setrendervsync, [
+      setup((sdl_init([everything]),
+             sdl_createwindow(Window, "", 400, 600, [opengl]),
+             sdl_createrenderer(Renderer, Window, null))),
+      cleanup((sdl_destroyrenderer(Renderer),
+               sdl_destroywindow(Window), sdl_quit))]) :-
+   sdl_setrendervsync(Renderer, 1).
 
-test(imgload, [setup(img_init(_, [jpg])), cleanup(img_quit)]) :-
+test(imgload) :-
    sample_image(Img),
    setup_call_cleanup(
-      img_load(Surface, Img),
-      true,
-      sdl_freesurface(Surface)).
+      sdl_init([everything]),
+      setup_call_cleanup(
+         img_load(Surface, Img),
+         true,
+         sdl_destroysurface(Surface)),
+      sdl_quit).
 
 test(createtexturefromsurface, [
    setup((
       sdl_init([everything]),
-      img_init(_, [jpg]),
-      sdl_createwindow(Window, "", 0, 0, 400, 600, [opengl]),
-      sdl_createrenderer(Renderer, Window, -1, [accelerated]),
+      sdl_createwindow(Window, "", 400, 600, [opengl]),
+      sdl_createrenderer(Renderer, Window, null),
       sample_image(Img),
       img_load(Surface, Img))),
    cleanup((
-      sdl_freesurface(Surface),
+      sdl_destroysurface(Surface),
       sdl_destroyrenderer(Renderer),
       sdl_destroywindow(Window),
-      img_quit,
       sdl_quit))]) :-
    setup_call_cleanup(
       sdl_createtexturefromsurface(Texture, Renderer, Surface),
       true,
       sdl_destroytexture(Texture)).
 
-test(renderclearcopypresent, [
+test(rendercleartexturepresent, [
    forall((
-      member(Srrect, [rect(0, 0, 1000, 1000), null]),
+      member(Srcrect, [rect(0, 0, 1000, 1000), null]),
       member(Dstrect, [rect(0, 0, 200, 300), null]))),
    setup((
       sdl_init([everything]),
-      img_init(_, [jpg]),
-      sdl_createwindow(Window, "", 0, 0, 400, 600, [opengl]),
-      sdl_createrenderer(Renderer, Window, -1, [accelerated]),
+      sdl_createwindow(Window, "", 400, 600, [opengl]),
+      sdl_createrenderer(Renderer, Window, null),
       sample_image(Img),
       img_load(Surface, Img),
       sdl_createtexturefromsurface(Texture, Renderer, Surface))),
    cleanup((
       sdl_destroytexture(Texture),
-      sdl_freesurface(Surface),
+      sdl_destroysurface(Surface),
       sdl_destroyrenderer(Renderer),
       sdl_destroywindow(Window),
-      img_quit,
       sdl_quit))]) :-
    sdl_renderclear(Renderer),
-   sdl_rendercopy(Renderer, Texture, Srrect, Dstrect),
+   sdl_rendertexture(Renderer, Texture, Srcrect, Dstrect),
    sdl_renderpresent(Renderer).
 
+% TODO: this test only checks the empty-queue case (expects fail). It should
+% also generate real events and assert on Event.type (atom, not string) to
+% catch regressions in the event unification code.
 test(pollevent, [setup(sdl_init([events])), cleanup(sdl_quit), fail]) :-
    sdl_pollevent(_).
 
 test(setrenderdrawcolor, [
    setup((
       sdl_init([everything]),
-      sdl_createwindow(Window, "", 0, 0, 400, 600, [opengl]),
-      sdl_createrenderer(Renderer, Window, -1, [accelerated]))),
+      sdl_createwindow(Window, "", 400, 600, [opengl]),
+      sdl_createrenderer(Renderer, Window, null))),
    cleanup((
       sdl_destroyrenderer(Renderer),
       sdl_destroywindow(Window),
       sdl_quit))]) :-
    sdl_setrenderdrawcolor(Renderer, 255, 0, 0, 255).
 
-test(renderdrawrect, [
+test(renderrect, [
    setup((
       sdl_init([everything]),
-      sdl_createwindow(Window, "", 0, 0, 400, 600, [opengl]),
-      sdl_createrenderer(Renderer, Window, -1, [accelerated]))),
+      sdl_createwindow(Window, "", 400, 600, [opengl]),
+      sdl_createrenderer(Renderer, Window, null))),
    cleanup((
       sdl_destroyrenderer(Renderer),
       sdl_destroywindow(Window),
       sdl_quit))]) :-
-   sdl_renderdrawrect(Renderer, rect(0, 0, 100, 100)).
+   sdl_renderrect(Renderer, rect(0, 0, 100, 100)).
 
 test(renderfillrect, [
    setup((
       sdl_init([everything]),
-      sdl_createwindow(Window, "", 0, 0, 400, 600, [opengl]),
-      sdl_createrenderer(Renderer, Window, -1, [accelerated]))),
+      sdl_createwindow(Window, "", 400, 600, [opengl]),
+      sdl_createrenderer(Renderer, Window, null))),
    cleanup((
       sdl_destroyrenderer(Renderer),
       sdl_destroywindow(Window),

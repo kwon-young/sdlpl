@@ -23,9 +23,9 @@ endif()
 list(INSERT CMAKE_MODULE_PATH 0 ${SWIPL_HOME_DIR}/cmake)
 include(swipl)
 
-# --- SDL2 -------------------------------------------------------------------
-find_package(SDL2 REQUIRED)
-find_package(SDL2_image REQUIRED)
+# --- SDL3 -------------------------------------------------------------------
+find_package(SDL3 REQUIRED)
+find_package(SDL3_image REQUIRED)
 
 # --- target -----------------------------------------------------------------
 # A MODULE library is loaded dynamically by SWI-Prolog.  target_link_swipl
@@ -33,7 +33,7 @@ find_package(SDL2_image REQUIRED)
 # and strips the "lib" prefix so the file is sdl.so (not libsdl.so).
 add_library(sdl MODULE sdl.cpp)
 target_link_swipl(sdl)
-target_link_libraries(sdl PRIVATE SDL2::SDL2 SDL2_image::SDL2_image)
+target_link_libraries(sdl PRIVATE SDL3::SDL3 SDL3_image::SDL3_image)
 
 # Place the shared object directly into the pack's lib/<arch> directory in the
 # source tree.  This is where use_foreign_library(foreign(sdl)) loads it from

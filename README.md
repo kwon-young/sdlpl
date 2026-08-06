@@ -1,32 +1,37 @@
-# sdl — SWI-Prolog bindings for SDL2
+# sdl — SWI-Prolog bindings for SDL3
 
 Handwritten bindings that let SWI-Prolog programs use
-[SDL2](https://www.libsdl.org/) (windowing, 2D rendering, input events) and
-[SDL2_image](https://github.com/libsdl/SDL_image) (image loading).
+[SDL3](https://www.libsdl.org/) (windowing, 2D rendering, input events) and
+[SDL3_image](https://github.com/libsdl/SDL_image) (image loading).
 
 The foreign extension is written in C++ using SWI-Prolog's C++ foreign
 interface (`SWI-cpp2.h`). SDL handles are wrapped in Prolog *blobs* with
 RAII semantics, so they are freed automatically on backtracking or garbage
 collection.
 
+Each predicate maps 1-to-1 to a single SDL3 function call.
+
 ## Features
 
-- Open and manage windows (`sdl_createwindow/7`)
-- Hardware-accelerated 2D rendering (`sdl_createrenderer/4`, `sdl_renderclear/1`,
-  `sdl_rendercopy/4`, `sdl_renderpresent/1`)
-- Draw outlined / filled rectangles (`sdl_renderdrawrect/2`,
+- Open and manage windows (`sdl_createwindow/5`, `sdl_setwindowposition/3`,
+  `sdl_destroywindow/1`)
+- Hardware-accelerated 2D rendering (`sdl_createrenderer/3`,
+  `sdl_setrendervsync/2`, `sdl_renderclear/1`, `sdl_rendertexture/4`,
+  `sdl_renderpresent/1`)
+- Draw outlined / filled rectangles (`sdl_renderrect/2`,
   `sdl_renderfillrect/2`, `sdl_setrenderdrawcolor/5`)
-- Load images via SDL2_image (`img_load/2`, `sdl_createtexturefromsurface/3`)
+- Load images via SDL3_image (`img_load/2`, `sdl_createtexturefromsurface/3`,
+  `sdl_destroysurface/1`)
 - Poll mouse, keyboard and quit events as dicts (`sdl_pollevent/1`)
 - Symbolic flag enums with type checking (`sdl_init_flag/2`,
-  `sdl_window_flag/2`, `sdl_renderer_flag/2`, `img_init_flag/2`)
+  `sdl_window_flag/2`)
 
 ## Installation
 
 ### Requirements
 
 - SWI-Prolog (>= 9.2) with development headers
-- SDL2 and SDL2_image development libraries
+- SDL3 and SDL3_image development libraries
 - A C++17 compiler and CMake (>= 3.16)
 
 ### As a pack
@@ -57,9 +62,11 @@ demo :-
     setup_call_cleanup(
         sdl_init([everything]),
         setup_call_cleanup(
-            sdl_createwindow(W, "demo", centered, centered, 640, 480, []),
+            sdl_createwindow(W, "demo", 640, 480, []),
             setup_call_cleanup(
-                sdl_createrenderer(R, W, -1, [accelerated]),
+                (   sdl_setwindowposition(W, 0x2fff0000, 0x2fff0000),
+                    sdl_createrenderer(R, W, null)
+                ),
                 (   sdl_setrenderdrawcolor(R, 255, 0, 0, 255),
                     sdl_renderclear(R),
                     sdl_setrenderdrawcolor(R, 255, 255, 255, 255),
@@ -92,9 +99,6 @@ Run an example from the pack root, e.g.:
 ```
 swipl -p library=prolog -p foreign=lib/$(swipl --arch) -g main examples/pong2.pl
 ```
-
-> Note: `pong2.pl` calls `sdl_renderfillrectf/2` (a float-rect variant) which
-> is not yet implemented in the foreign extension. It is kept for reference.
 
 ## Testing
 

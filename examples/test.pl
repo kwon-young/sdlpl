@@ -248,10 +248,7 @@ setup_call_cleanup(Setup, Goal, Cleanup, In, Out) :-
 setup(Ui) -->
    setup_call_cleanup(
       sdl_init([everything]),
-      setup_call_cleanup(
-         img_init([jpg]),
-         call_tag(setup, Ui),
-         img_quit),
+      call_tag(setup, Ui),
       sdl_quit).
 
 put(Key, Value), [Out] -->
@@ -272,9 +269,11 @@ update(Key, Value, NewValue), [Out] -->
 
 window(setup, Ui) -->
    setup_call_cleanup(
-      sdl_createwindow(Window, Ui.title, centered, centered, Ui.w, Ui.h, [vulkan, resizable]),
+      sdl_createwindow(Window, Ui.title, Ui.w, Ui.h, [vulkan, resizable]),
       setup_call_cleanup(
-         sdl_createrenderer(Renderer, Window, -1, [accelerated]),
+         (  sdl_setwindowposition(Window, 0x2fff0000, 0x2fff0000),
+            sdl_createrenderer(Renderer, Window, null)
+         ),
          (  put(renderer, Renderer),
             setup_childs(Ui.get(childs, []))
          ),
@@ -324,10 +323,10 @@ image(setup, Image) -->
       setup_call_cleanup(
          img_load(Surface, Image.source),
          sdl_createtexturefromsurface(Texture, Renderer, Surface),
-         sdl_freesurface(Surface)
+         sdl_destroysurface(Surface)
       ),
       (  { Rect = rect(Image.x, Image.y, Image.w, Image.h) },
-         add_render(sdl_rendercopy(Renderer, Texture, null, Rect)),
+         add_render(sdl_rendertexture(Renderer, Texture, null, Rect)),
          setup_childs(Image.get(childs, []))
       ),
       sdl_destroytexture(Texture)
@@ -337,7 +336,7 @@ rectangle(render, rgba(R, G, B, A), Rect, Fill, Renderer) :-
    sdl_setrenderdrawcolor(Renderer, R, G, B, A),
    (  Fill
    -> sdl_renderfillrect(Renderer, Rect)
-   ;  sdl_renderdrawrect(Renderer, Rect)
+   ;  sdl_renderrect(Renderer, Rect)
    ).
 
 rectangle(setup, Rect) -->
