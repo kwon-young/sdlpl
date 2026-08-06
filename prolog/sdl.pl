@@ -12,11 +12,11 @@
                 ]).
 :- use_foreign_library(foreign(sdl)).
 
-must_be_blob(Type, Term) :-
-   (  blob(Term, Type)
-   -> true
-   ;  type_error(Type, Term)
-   ).
+:- multifile error:has_type/2.
+error:has_type(sdl_window_blob,   X) :- blob(X, sdl_window_blob).
+error:has_type(sdl_renderer_blob, X) :- blob(X, sdl_renderer_blob).
+error:has_type(sdl_surface_blob,  X) :- blob(X, sdl_surface_blob).
+error:has_type(sdl_texture_blob,  X) :- blob(X, sdl_texture_blob).
 
 user:portray(Window) :-
    blob(Window, sdl_window_blob), !,
@@ -112,7 +112,7 @@ sdl_renderer_flag(targettexture, 0x00000008).
 
 sdl_createrenderer(Renderer, Window, Index, Flags) :-
    must_be(var, Renderer),
-   must_be_blob(sdl_window_blob, Window),
+   must_be(sdl_window_blob, Window),
    must_be(integer, Index),
    must_be(list(oneof([software, accelerated, presentvsync, targettexture])), Flags),
    maplist(sdl_renderer_flag, Flags, IntFlags),
@@ -140,13 +140,13 @@ img_load(Surface, File) :-
 
 sdl_createtexturefromsurface(Texture, Renderer, Surface) :-
    must_be(var, Texture),
-   must_be_blob(sdl_renderer_blob, Renderer),
-   must_be_blob(sdl_surface_blob, Surface),
+   must_be(sdl_renderer_blob, Renderer),
+   must_be(sdl_surface_blob, Surface),
    sdl_createtexturefromsurface_(Texture, Renderer, Surface).
 
 sdl_rendercopy(Renderer, Texture, Srrect, Dstrect) :-
-   must_be_blob(sdl_renderer_blob, Renderer),
-   must_be_blob(sdl_texture_blob, Texture),
+   must_be(sdl_renderer_blob, Renderer),
+   must_be(sdl_texture_blob, Texture),
    maplist(
       must_be((compound(rect(integer, integer, integer, integer)) ; oneof([null]))),
       [Srrect, Dstrect]),
@@ -166,7 +166,7 @@ sdl_pollevent(Event) :-
    dict_create(Event, Tag, Pairs).
 
 sdl_setrenderdrawcolor(Renderer, R, G, B, A) :-
-   must_be_blob(sdl_renderer_blob, Renderer),
+   must_be(sdl_renderer_blob, Renderer),
    must_be(between(0, 255), R),
    must_be(between(0, 255), G),
    must_be(between(0, 255), B),
@@ -174,11 +174,11 @@ sdl_setrenderdrawcolor(Renderer, R, G, B, A) :-
    sdl_setrenderdrawcolor_(Renderer, R, G, B, A).
 
 sdl_renderdrawrect(Renderer, Rect) :-
-   must_be_blob(sdl_renderer_blob, Renderer),
+   must_be(sdl_renderer_blob, Renderer),
    must_be(compound(rect(integer, integer, integer, integer)), Rect),
    sdl_renderdrawrect_(Renderer, Rect).
 
 sdl_renderfillrect(Renderer, Rect) :-
-   must_be_blob(sdl_renderer_blob, Renderer),
+   must_be(sdl_renderer_blob, Renderer),
    must_be(compound(rect(integer, integer, integer, integer)), Rect),
    sdl_renderfillrect_(Renderer, Rect).
