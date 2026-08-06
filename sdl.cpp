@@ -46,11 +46,14 @@ static PL_blob_t sdl_renderer_blob =
 
 struct SDLRendererBlob : public PlBlob {
   SDL_Renderer *renderer_;
+  PlAtom parent_;
 
-  explicit SDLRendererBlob() : PlBlob(&sdl_renderer_blob) {}
+  explicit SDLRendererBlob() : PlBlob(&sdl_renderer_blob), parent_(PlAtom::null) {}
 
-  explicit SDLRendererBlob(SDL_Renderer *renderer)
-      : PlBlob(&sdl_renderer_blob), renderer_(renderer) {}
+  explicit SDLRendererBlob(SDL_Renderer *renderer, PlAtom window)
+      : PlBlob(&sdl_renderer_blob), renderer_(renderer), parent_(window) {
+    parent_.register_ref();
+  }
 
   PL_BLOB_SIZE
 
@@ -62,6 +65,10 @@ struct SDLRendererBlob : public PlBlob {
     if (renderer_ != NULL) {
       SDL_DestroyRenderer(renderer_);
       renderer_ = NULL;
+    }
+    if (parent_.not_null()) {
+      parent_.unregister_ref();
+      parent_.set_null();
     }
   }
 
@@ -118,11 +125,14 @@ static PL_blob_t sdl_texture_blob =
 
 struct SDLTextureBlob : public PlBlob {
   SDL_Texture *texture_;
+  PlAtom parent_;
 
-  explicit SDLTextureBlob() : PlBlob(&sdl_texture_blob) {}
+  explicit SDLTextureBlob() : PlBlob(&sdl_texture_blob), parent_(PlAtom::null) {}
 
-  explicit SDLTextureBlob(SDL_Texture *texture)
-      : PlBlob(&sdl_texture_blob), texture_(texture) {}
+  explicit SDLTextureBlob(SDL_Texture *texture, PlAtom renderer)
+      : PlBlob(&sdl_texture_blob), texture_(texture), parent_(renderer) {
+    parent_.register_ref();
+  }
 
   PL_BLOB_SIZE
 
@@ -134,6 +144,10 @@ struct SDLTextureBlob : public PlBlob {
     if (texture_ != NULL) {
       SDL_DestroyTexture(texture_);
       texture_ = NULL;
+    }
+    if (parent_.not_null()) {
+      parent_.unregister_ref();
+      parent_.set_null();
     }
   }
 
@@ -183,7 +197,8 @@ PREDICATE(sdl_createrenderer_, 4) {
   if (renderer == NULL) {
     throw PlUnknownError(SDL_GetError());
   }
-  auto ref = std::unique_ptr<PlBlob>(new SDLRendererBlob(renderer));
+  auto ref =
+      std::unique_ptr<PlBlob>(new SDLRendererBlob(renderer, window_ref->symbol_));
   return A1.unify_blob(&ref);
 }
 
@@ -268,7 +283,8 @@ PREDICATE(sdl_createtexturefromsurface_, 3) {
   if (texture == NULL) {
     throw PlUnknownError(SDL_GetError());
   }
-  auto ref = std::unique_ptr<PlBlob>(new SDLTextureBlob(texture));
+  auto ref =
+      std::unique_ptr<PlBlob>(new SDLTextureBlob(texture, renderer_ref->symbol_));
   return A1.unify_blob(&ref);
 }
 
