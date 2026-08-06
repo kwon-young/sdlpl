@@ -1,0 +1,19 @@
+# build artifacts
+/lib/
+/build/
+/CMakeFiles/
+*.o
+*.so
+*.dylib
+
+# editor / tooling
+/.cache/
+compile_commands.json
+*~
+
+# pack manager state
+status.db
+
+# pack archives
+*.tgz
+*.zip
