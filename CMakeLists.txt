@@ -35,28 +35,18 @@ add_library(sdl MODULE sdl.cpp)
 target_link_swipl(sdl)
 target_link_libraries(sdl PRIVATE SDL2::SDL2 SDL2_image::SDL2_image)
 
-# Place the shared object at <build>/lib/<arch>/sdl.so, mirroring the pack
-# layout so local builds and installed packs are structured identically.
+# Place the shared object directly into the pack's lib/<arch> directory in the
+# source tree.  This is where use_foreign_library(foreign(sdl)) loads it from
+# and where swipl_add_test() looks for it.  The pack build flow runs tests
+# before install, so the module must be present here at build time.  The
+# directory is gitignored.
 set_target_properties(sdl PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${swipl_module_dir}
-  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${swipl_module_dir})
+  LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${swipl_module_dir}
+  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${swipl_module_dir})
 
-# Install the shared object into the pack's lib/<arch> directory, where
-# use_foreign_library(foreign(sdl)) expects it.
 install(TARGETS sdl
         DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/${swipl_module_dir})
 
 # --- tests ------------------------------------------------------------------
 enable_testing()
-add_test(
-  NAME sdl
-  COMMAND ${SWIPL}
-          -p library=${CMAKE_SOURCE_DIR}/prolog
-          -p foreign=$<TARGET_FILE_DIR:sdl>
-          -g "load_files('tests/sdl.plt',[if(changed),imports([])]),run_tests,halt"
-          -t halt
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-
-add_custom_target(check
-  COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-  DEPENDS sdl)
+swipl_add_test(sdl)

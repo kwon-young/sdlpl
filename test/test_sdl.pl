@@ -131,3 +131,6 @@ test(renderfillrect, [
    sdl_renderfillrect(Renderer, rect(0, 0, 100, 100)).
 
 :- end_tests(sdl).
+
+test_sdl :-
+   run_tests.

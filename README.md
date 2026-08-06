@@ -90,7 +90,7 @@ The `examples/` directory contains small programs demonstrating the API:
 Run an example from the pack root, e.g.:
 
 ```
-swipl -p library=prolog -p foreign=build/lib/$(swipl --arch) -g main examples/pong2.pl
+swipl -p library=prolog -p foreign=lib/$(swipl --arch) -g main examples/pong2.pl
 ```
 
 > Note: `pong2.pl` calls `sdl_renderfillrectf/2` (a float-rect variant) which
@@ -102,7 +102,7 @@ swipl -p library=prolog -p foreign=build/lib/$(swipl --arch) -g main examples/po
 ctest --test-dir build --output-on-failure
 ```
 
-Tests live in `tests/sdl.plt` and are integration tests that open real SDL
+Tests live in `test/test_sdl.pl` and are integration tests that open real SDL
 windows. They use the sample image `examples/DSC03094.JPG`.
 
 ## License
