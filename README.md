@@ -27,7 +27,7 @@ collection.
 
 - SWI-Prolog (>= 9.2) with development headers
 - SDL2 and SDL2_image development libraries
-- A C++17 compiler, `make`, and `pkg-config`
+- A C++17 compiler and CMake (>= 3.16)
 
 ### As a pack
 
@@ -35,11 +35,15 @@ collection.
 swipl pack install https://github.com/kwon-young/sdlpl.git
 ```
 
+The pack manager detects `CMakeLists.txt`, configures and builds the
+foreign extension via CMake, and installs `sdl.so` into `lib/<arch>/`.
+
 ### From source (local checkout)
 
 ```
-make        # builds lib/<arch>/sdl.so
-make check  # runs the plunit test suite
+cmake -B build
+cmake --build build
+ctest --test-dir build --output-on-failure   # run the plunit suite
 ```
 
 The library is then usable with `:- use_module(library(sdl)).`
@@ -86,7 +90,7 @@ The `examples/` directory contains small programs demonstrating the API:
 Run an example from the pack root, e.g.:
 
 ```
-swipl -p library=prolog -p foreign=lib/$(swipl --arch) -g main examples/pong2.pl
+swipl -p library=prolog -p foreign=build/lib/$(swipl --arch) -g main examples/pong2.pl
 ```
 
 > Note: `pong2.pl` calls `sdl_renderfillrectf/2` (a float-rect variant) which
@@ -95,7 +99,7 @@ swipl -p library=prolog -p foreign=lib/$(swipl --arch) -g main examples/pong2.pl
 ## Testing
 
 ```
-make check
+ctest --test-dir build --output-on-failure
 ```
 
 Tests live in `tests/sdl.plt` and are integration tests that open real SDL
