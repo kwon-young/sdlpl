@@ -17,3 +17,6 @@ status.db
 # pack archives
 *.tgz
 *.zip
+
+# sample images
+*.JPG
