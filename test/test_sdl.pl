@@ -30,8 +30,8 @@ test(setwindowposition, [
 
 pos(0).
 pos(100).
-pos(0x2fff0000).  % SDL_WINDOWPOS_CENTERED
-pos(0x1fff0000).  % SDL_WINDOWPOS_UNDEFINED
+pos(centered).    % SDL_WINDOWPOS_CENTERED
+pos(undefined).   % SDL_WINDOWPOS_UNDEFINED
 
 test(createrenderer, [
       setup((sdl_init([everything]),

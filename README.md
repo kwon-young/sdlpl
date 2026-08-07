@@ -64,7 +64,7 @@ demo :-
         setup_call_cleanup(
             sdl_createwindow(W, "demo", 640, 480, []),
             setup_call_cleanup(
-                (   sdl_setwindowposition(W, 0x2fff0000, 0x2fff0000),
+                (   sdl_setwindowposition(W, centered, centered),
                     sdl_createrenderer(R, W, null)
                 ),
                 (   sdl_setrenderdrawcolor(R, 255, 0, 0, 255),

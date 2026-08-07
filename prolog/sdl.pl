@@ -7,7 +7,7 @@
                 sdl_createtexturefromsurface/3, sdl_destroytexture/1,
                 sdl_pollevent/1,
                 sdl_setrenderdrawcolor/5, sdl_renderrect/2, sdl_renderfillrect/2,
-                sdl_init_flag/2, sdl_window_flag/2
+                sdl_init_flag/2, sdl_window_flag/2, sdl_windowpos/2
                 ]).
 :- use_foreign_library(foreign(sdl)).
 
@@ -84,6 +84,18 @@ sdl_window_flag(input_grabbed, Flag) :-
 sdl_window_flag(allow_highdpi, Flag) :-
    sdl_window_flag(high_pixel_density, Flag).
 
+% SDL_WINDOWPOS_CENTERED / SDL_WINDOWPOS_UNDEFINED. A coordinate may be
+% either one of these atoms or a plain integer pixel offset; atoms are
+% translated by sdl_windowpos_/2 before reaching the foreign predicate.
+sdl_windowpos(centered, 0x2fff0000).
+sdl_windowpos(undefined, 0x1fff0000).
+
+sdl_windowpos_(Coord, Int) :-
+   (  atom(Coord)
+   -> sdl_windowpos(Coord, Int)
+   ;  Int = Coord
+   ).
+
 sdl_createwindow(Handle, Title, Width, Height, Flags) :-
    must_be(var, Handle),
    must_be(string, Title),
@@ -97,9 +109,11 @@ sdl_createwindow(Handle, Title, Width, Height, Flags) :-
 
 sdl_setwindowposition(Window, X, Y) :-
    must_be(sdl_window_blob, Window),
-   must_be(integer, X),
-   must_be(integer, Y),
-   sdl_setwindowposition_(Window, X, Y).
+   sdl_windowpos_(X, Xp),
+   sdl_windowpos_(Y, Yp),
+   must_be(integer, Xp),
+   must_be(integer, Yp),
+   sdl_setwindowposition_(Window, Xp, Yp).
 
 sdl_createrenderer(Renderer, Window, Name) :-
    must_be(var, Renderer),
