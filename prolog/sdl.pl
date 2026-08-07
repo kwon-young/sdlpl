@@ -16,6 +16,21 @@ error:has_type(sdl_window_blob,   X) :- blob(X, sdl_window_blob).
 error:has_type(sdl_renderer_blob, X) :- blob(X, sdl_renderer_blob).
 error:has_type(sdl_surface_blob,  X) :- blob(X, sdl_surface_blob).
 error:has_type(sdl_texture_blob,  X) :- blob(X, sdl_texture_blob).
+error:has_type(sdl_init_flag,   X) :- sdl_init_flag(X, _).
+error:has_type(sdl_window_flag, X) :- sdl_window_flag(X, _).
+error:has_type(sdl_windowpos,   X) :- ( atom(X) -> sdl_windowpos(X, _) ; integer(X) ).
+
+% Rich error messages listing the valid atoms for each flag type.
+:- multifile prolog:error_message//1.
+prolog:error_message(type_error(sdl_init_flag, Culprit)) -->
+   { findall(F, sdl_init_flag(F, _), Fs) },
+   [ 'sdl_init_flag (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_window_flag, Culprit)) -->
+   { findall(F, sdl_window_flag(F, _), Fs) },
+   [ 'sdl_window_flag (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_windowpos, Culprit)) -->
+   { findall(F, sdl_windowpos(F, _), Fs) },
+   [ 'sdl_windowpos (one of ~q or an integer pixel offset), found ~q'-[Fs, Culprit] ].
 
 user:portray(Window) :-
    blob(Window, sdl_window_blob), !,
@@ -47,8 +62,7 @@ or_list(List, Or) :-
    foldl([B, A, C]>>(C is A \/ B), List, 0, Or).
 
 sdl_init(Flags) :-
-   findall(Flag, sdl_init_flag(Flag, _), AtomFlags),
-   must_be(list(oneof(AtomFlags)), Flags),
+   must_be(list(sdl_init_flag), Flags),
    maplist(sdl_init_flag, Flags, IntFlags),
    or_list(IntFlags, IntFlag),
    sdl_init_(IntFlag).
@@ -84,36 +98,32 @@ sdl_window_flag(input_grabbed, Flag) :-
 sdl_window_flag(allow_highdpi, Flag) :-
    sdl_window_flag(high_pixel_density, Flag).
 
-% SDL_WINDOWPOS_CENTERED / SDL_WINDOWPOS_UNDEFINED. A coordinate may be
-% either one of these atoms or a plain integer pixel offset; atoms are
-% translated by sdl_windowpos_/2 before reaching the foreign predicate.
+% SDL_WINDOWPOS_CENTERED / SDL_WINDOWPOS_UNDEFINED. A window position
+% coordinate may be either one of these atoms or a plain integer pixel
+% offset; sdl_setwindowposition/3 validates via the sdl_windowpos type and
+% translates atoms below before calling the foreign predicate.
 sdl_windowpos(centered, 0x2fff0000).
 sdl_windowpos(undefined, 0x1fff0000).
-
-sdl_windowpos_(Coord, Int) :-
-   (  atom(Coord)
-   -> sdl_windowpos(Coord, Int)
-   ;  Int = Coord
-   ).
 
 sdl_createwindow(Handle, Title, Width, Height, Flags) :-
    must_be(var, Handle),
    must_be(string, Title),
    must_be(positive_integer, Width),
    must_be(positive_integer, Height),
-   findall(AtomFlag, sdl_window_flag(AtomFlag, _), AtomFlags),
-   must_be(list(oneof(AtomFlags)), Flags),
+   must_be(list(sdl_window_flag), Flags),
    maplist(sdl_window_flag, Flags, IntFlags),
    or_list(IntFlags, IntFlag),
    sdl_createwindow_(Handle, Title, Width, Height, IntFlag).
 
 sdl_setwindowposition(Window, X, Y) :-
    must_be(sdl_window_blob, Window),
-   sdl_windowpos_(X, Xp),
-   sdl_windowpos_(Y, Yp),
-   must_be(integer, Xp),
-   must_be(integer, Yp),
+   must_be(sdl_windowpos, X),
+   must_be(sdl_windowpos, Y),
+   coord(X, Xp),
+   coord(Y, Yp),
    sdl_setwindowposition_(Window, Xp, Yp).
+
+coord(C, Cp) :- ( atom(C) -> sdl_windowpos(C, Cp) ; Cp = C ).
 
 sdl_createrenderer(Renderer, Window, Name) :-
    must_be(var, Renderer),
