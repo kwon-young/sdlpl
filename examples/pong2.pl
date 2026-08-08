@@ -1,4 +1,5 @@
 :- use_module(library(sdl)).
+:- use_module(library(cairo)).
 :- use_module(library(macros)).
 
 #define(window_w, 600).
@@ -28,28 +29,33 @@ main :-
          setup_call_cleanup(
              (  catch(sdl_setwindowposition(Window, centered, centered),
                      error(_, _), true),
-               sdl_createrenderer(Renderer, Window, null)
-            ),
-            (
-               X is #window_w / 2 - #ball_w / 2,
-               Y is #window_h / 2 - #ball_h / 2,
-               PY is #window_h / 2 - #paddle_h / 2,
-               get_time(Start),
-               main_loop(state{renderer: Renderer,
-                               ball_x: X,
-                               ball_y: Y,
-                               ball_dx: #ball_base_speed,
-                               ball_dy: 0.0,
-                               ball_speed: #ball_base_speed,
-                               p1_y: PY,
-                               p2_y: PY,
-                               p1_score: 0,
-                               p2_score: 0,
-                               t: Start,
-                               dt: 0
-               })
-            ),
-            sdl_destroyrenderer(Renderer)),
+                sdl_createrenderer(Renderer, Window, null),
+                sdl_setrendervsync(Renderer, 1),
+                sdl_createtexture(Texture, Renderer, bgrx32, streaming, #window_w, #window_h)
+             ),
+             (
+                X is #window_w / 2 - #ball_w / 2,
+                Y is #window_h / 2 - #ball_h / 2,
+                PY is #window_h / 2 - #paddle_h / 2,
+                get_time(Start),
+                main_loop(state{renderer: Renderer,
+                                texture: Texture,
+                                ball_x: X,
+                                ball_y: Y,
+                                ball_dx: #ball_base_speed,
+                                ball_dy: 0.0,
+                                ball_speed: #ball_base_speed,
+                                p1_y: PY,
+                                p2_y: PY,
+                                p1_score: 0,
+                                p2_score: 0,
+                                t: Start,
+                                dt: 0
+                })
+             ),
+             (  sdl_destroytexture(Texture),
+                sdl_destroyrenderer(Renderer)
+             )),
          sdl_destroywindow(Window)),
       sdl_quit).
 
@@ -59,13 +65,13 @@ main_loop(State) :-
 events(StateIn) :-
    (  sdl_pollevent(Event)
    -> (  Event.type == quit
-      -> true
-      ;  (  Event.type == mousemotion
-         -> State = StateIn.put([p2_y=Event.y])
-         ;  State = StateIn
-         ),
-         events(State)
-      )
+       -> true
+       ;  (  Event.type == mousemotion
+          -> State = StateIn.put([p2_y=Event.y])
+          ;  State = StateIn
+          ),
+          events(State)
+       )
    ;  render(StateIn)
    ).
 
@@ -76,34 +82,51 @@ render(StateIn) :-
    move_p1(State1, State2),
    move_ball(State2, State),
    Renderer = State.renderer,
-   sdl_setrenderdrawcolor(Renderer, 0, 0, 0, 255),
-   sdl_renderclear(Renderer),
-   sdl_setrenderdrawcolor(Renderer, 255, 255, 255, 255),
-   draw_center_line(Renderer),
-   draw_score_bar(Renderer, State),
+   Texture = State.texture,
+   sdl_locktexture(Texture, null, Pixels, Pitch),
+   cairo_image_surface_create_for_data(CairoSurf, Pixels, rgb24, #window_w, #window_h, Pitch),
+   cairo_create(Cr, CairoSurf),
+   cairo_set_antialias(Cr, best),
+   cairo_set_source_rgba(Cr, 0.0, 0.0, 0.0, 1.0),
+   cairo_paint(Cr),
+   cairo_set_source_rgba(Cr, 1.0, 1.0, 1.0, 1.0),
+   draw_center_line(Cr),
+   draw_score_bar(Cr, State),
    ball_color(State, R, G, B),
-   sdl_setrenderdrawcolor(Renderer, R, G, B, 255),
-   sdl_renderfillrect(Renderer, rect(State.ball_x, State.ball_y, #ball_w, #ball_h)),
-   sdl_setrenderdrawcolor(Renderer, 255, 255, 255, 255),
-   sdl_renderfillrect(Renderer, rect(0.0, State.p1_y, #paddle_w, #paddle_h)),
-   Paddle_X is #window_w - #paddle_w,
-   sdl_renderfillrect(Renderer, rect(Paddle_X, State.p2_y, #paddle_w, #paddle_h)),
+   cairo_set_source_rgba(Cr, R, G, B, 1.0),
+   CX is State.ball_x + #ball_w / 2,
+   CY is State.ball_y + #ball_h / 2,
+   Rad is #ball_w / 2,
+   EndAngle is 2 * pi,
+   cairo_arc(Cr, CX, CY, Rad, 0.0, EndAngle),
+   cairo_fill(Cr),
+   cairo_set_source_rgba(Cr, 1.0, 1.0, 1.0, 1.0),
+   cairo_rectangle(Cr, 0.0, State.p1_y, #paddle_w, #paddle_h),
+   cairo_fill(Cr),
+   PX is #window_w - #paddle_w,
+   cairo_rectangle(Cr, PX, State.p2_y, #paddle_w, #paddle_h),
+   cairo_fill(Cr),
+   cairo_destroy(Cr),
+   cairo_surface_destroy(CairoSurf),
+   sdl_unlocktexture(Texture),
+   sdl_rendertexture(Renderer, Texture, null, null),
    sdl_renderpresent(Renderer),
    main_loop(State).
 
-draw_center_line(Renderer) :-
+draw_center_line(Cr) :-
    CX is #window_w / 2 - #center_w / 2,
-   draw_center_line(Renderer, CX, 0.0).
+   draw_center_line(Cr, CX, 0.0).
 
-draw_center_line(Renderer, CX, Y) :-
+draw_center_line(Cr, CX, Y) :-
    (  Y >= #window_h
    -> true
-   ;  sdl_renderfillrect(Renderer, rect(CX, Y, #center_w, #center_w)),
+   ;  cairo_rectangle(Cr, CX, Y, #center_w, #center_w),
+      cairo_fill(Cr),
       NextY is Y + #center_w + #center_gap,
-      draw_center_line(Renderer, CX, NextY)
+      draw_center_line(Cr, CX, NextY)
    ).
 
-draw_score_bar(Renderer, State) :-
+draw_score_bar(Cr, State) :-
    Diff is State.p1_score - State.p2_score,
    (  Diff =:= 0
    -> true
@@ -115,11 +138,13 @@ draw_score_bar(Renderer, State) :-
       CX is #window_w / 2,
       (  Diff > 0
       -> X is CX - Len,
-         sdl_setrenderdrawcolor(Renderer, 50, 150, 255, 255)
+         R is 50 / 255, G is 150 / 255, B is 255 / 255
       ;  X = CX,
-         sdl_setrenderdrawcolor(Renderer, 255, 150, 50, 255)
+         R is 255 / 255, G is 150 / 255, B is 50 / 255
       ),
-      sdl_renderfillrect(Renderer, rect(X, #score_bar_y, Len, #score_bar_h))
+      cairo_set_source_rgba(Cr, R, G, B, 1.0),
+      cairo_rectangle(Cr, X, #score_bar_y, Len, #score_bar_h),
+      cairo_fill(Cr)
    ).
 
 ball_color(State, R, G, B) :-
@@ -130,18 +155,20 @@ ball_color(State, R, G, B) :-
    -> Ratio = 1.0
    ;  Ratio is (Speed - #ball_base_speed) / (#ball_max_speed - #ball_base_speed)
    ),
-   R is round(80  + Ratio * (255 - 80)),
-   G is round(200 + Ratio * (80 - 200)),
-   B is round(255 + Ratio * (50 - 255)).
+   R is (80  + Ratio * (255 - 80)) / 255,
+   G is (200 + Ratio * (80 - 200)) / 255,
+   B is (255 + Ratio * (50 - 255)) / 255.
 
 move_p1(StateIn, State) :-
    BallCenter is StateIn.ball_y + #ball_h / 2,
    PaddleCenter is StateIn.p1_y + #paddle_h / 2,
-   (  BallCenter < PaddleCenter
-   -> Y is StateIn.p1_y - #paddle_v * StateIn.dt
-   ;  BallCenter > PaddleCenter
-   -> Y is StateIn.p1_y + #paddle_v * StateIn.dt
-   ;  Y = StateIn.p1_y
+   Step is #paddle_v * StateIn.dt,
+   Diff is BallCenter - PaddleCenter,
+   (  abs(Diff) =< Step
+   -> Y is StateIn.p1_y + Diff
+   ;  Diff < 0
+   -> Y is StateIn.p1_y - Step
+   ;  Y is StateIn.p1_y + Step
    ),
    State = StateIn.put([p1_y=Y]).
 

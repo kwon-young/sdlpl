@@ -311,6 +311,21 @@ PREDICATE(sdl_createtexturefromsurface_, 3) {
   return A1.unify_blob(&ref);
 }
 
+PREDICATE(sdl_createtexture_, 6) {
+  auto renderer_ref = PlBlobV<SDLRendererBlob>::cast_ex(A2, sdl_renderer_blob);
+  SDL_PixelFormat format = (SDL_PixelFormat)A3.as_uint32_t();
+  SDL_TextureAccess access = (SDL_TextureAccess)A4.as_int();
+  SDL_Texture *texture =
+      SDL_CreateTexture(renderer_ref->renderer_, format, access,
+                        A5.as_int(), A6.as_int());
+  if (texture == NULL) {
+    throw PlUnknownError(SDL_GetError());
+  }
+  auto ref =
+      std::unique_ptr<PlBlob>(new SDLTextureBlob(texture, renderer_ref->symbol_));
+  return A1.unify_blob(&ref);
+}
+
 PREDICATE(sdl_destroytexture, 1) {
   auto ref = PlBlobV<SDLTextureBlob>::cast_ex(A1, sdl_texture_blob);
   ref->destroy();
@@ -463,6 +478,65 @@ PREDICATE(sdl_createsurfacefrom_, 6) {
   auto ref = std::unique_ptr<PlBlob>(
       new SDLSurfaceBlob(surface, ptr_ref->symbol_));
   return A1.unify_blob(&ref);
+}
+
+// ---------------------------------------------------------------------------
+// Update a texture with new pixel data.  The pixels pointer is borrowed
+// from a PtrBlob.  This avoids creating/destroying a texture every frame
+// when streaming dynamically-rendered content (e.g. cairo).
+// ---------------------------------------------------------------------------
+
+PREDICATE(sdl_updatetexture_, 4) {
+  auto texture_ref = PlBlobV<SDLTextureBlob>::cast_ex(A1, sdl_texture_blob);
+  SDL_Rect rect;
+  SDL_Rect *rect_p = NULL;
+  if (A2.is_compound()) {
+    rect.x = (int)A2[1].as_float();
+    rect.y = (int)A2[2].as_float();
+    rect.w = (int)A2[3].as_float();
+    rect.h = (int)A2[4].as_float();
+    rect_p = &rect;
+  }
+  auto ptr_ref = PlBlobV<PtrBlob>::cast_ex(A3, *ptr_blob_type());
+  int pitch = A4.as_int();
+  if (!SDL_UpdateTexture(texture_ref->texture_, rect_p, ptr_ref->ptr, pitch)) {
+    throw PlUnknownError(SDL_GetError());
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Lock a streaming texture for write-only pixel access.  Returns a PtrBlob
+// wrapping the locked pixel pointer (parent = texture blob) and the pitch.
+// The pointer is valid until sdl_unlocktexture is called.  This enables
+// zero-copy rendering: cairo writes directly into the GPU texture's memory.
+// ---------------------------------------------------------------------------
+
+PREDICATE(sdl_locktexture_, 4) {
+  auto texture_ref = PlBlobV<SDLTextureBlob>::cast_ex(A1, sdl_texture_blob);
+  SDL_Rect rect;
+  SDL_Rect *rect_p = NULL;
+  if (A2.is_compound()) {
+    rect.x = (int)A2[1].as_float();
+    rect.y = (int)A2[2].as_float();
+    rect.w = (int)A2[3].as_float();
+    rect.h = (int)A2[4].as_float();
+    rect_p = &rect;
+  }
+  void *pixels;
+  int pitch;
+  if (!SDL_LockTexture(texture_ref->texture_, rect_p, &pixels, &pitch)) {
+    throw PlUnknownError(SDL_GetError());
+  }
+  auto ref = std::unique_ptr<PlBlob>(
+      new PtrBlob(pixels, texture_ref->symbol_));
+  return (A3.unify_blob(&ref) && A4.unify_integer(pitch));
+}
+
+PREDICATE(sdl_unlocktexture_, 1) {
+  auto texture_ref = PlBlobV<SDLTextureBlob>::cast_ex(A1, sdl_texture_blob);
+  SDL_UnlockTexture(texture_ref->texture_);
+  return true;
 }
 
 

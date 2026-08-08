@@ -34,11 +34,17 @@ static PL_blob_t cairo_surface_blob =
 
 struct CairoSurfaceBlob : public PlBlob {
   cairo_surface_t *surface_;
+  PlAtom parent_; // keeps a PtrBlob alive (for for_data surfaces)
 
-  explicit CairoSurfaceBlob() : PlBlob(&cairo_surface_blob) {}
+  explicit CairoSurfaceBlob() : PlBlob(&cairo_surface_blob), parent_(PlAtom::null) {}
 
   explicit CairoSurfaceBlob(cairo_surface_t *surface)
-      : PlBlob(&cairo_surface_blob), surface_(surface) {}
+      : PlBlob(&cairo_surface_blob), surface_(surface), parent_(PlAtom::null) {}
+
+  explicit CairoSurfaceBlob(cairo_surface_t *surface, PlAtom parent)
+      : PlBlob(&cairo_surface_blob), surface_(surface), parent_(parent) {
+    parent_.register_ref();
+  }
 
   PL_BLOB_SIZE
 
@@ -50,6 +56,10 @@ struct CairoSurfaceBlob : public PlBlob {
     if (surface_ != NULL) {
       cairo_surface_destroy(surface_);
       surface_ = NULL;
+    }
+    if (parent_.not_null()) {
+      parent_.unregister_ref();
+      parent_.set_null();
     }
   }
 
@@ -122,6 +132,23 @@ PREDICATE(cairo_image_surface_create_, 4) {
   }
   auto ref =
       std::unique_ptr<PlBlob>(new CairoSurfaceBlob(surface));
+  return A1.unify_blob(&ref);
+}
+
+PREDICATE(cairo_image_surface_create_for_data_, 6) {
+  auto ptr_ref = PlBlobV<PtrBlob>::cast_ex(A2, *ptr_blob_type());
+  cairo_format_t format = (cairo_format_t)A3.as_int();
+  cairo_surface_t *surface = cairo_image_surface_create_for_data(
+      (unsigned char *)ptr_ref->ptr, format, A4.as_int(), A5.as_int(), A6.as_int());
+  if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
+    cairo_surface_destroy(surface);
+    throw PlUnknownError(cairo_status_to_string(
+        cairo_surface_status(surface)));
+  }
+  // Parent = PtrBlob → keeps the pixel buffer alive (owned by SDL texture).
+  // cairo does NOT free the pixel data on surface_destroy.
+  auto ref = std::unique_ptr<PlBlob>(
+      new CairoSurfaceBlob(surface, ptr_ref->symbol_));
   return A1.unify_blob(&ref);
 }
 

@@ -2,6 +2,8 @@
                 sdl_createwindow/5, sdl_setwindowposition/3, sdl_destroywindow/1,
                 sdl_createrenderer/3, sdl_setrendervsync/2, sdl_destroyrenderer/1,
                 sdl_renderclear/1, sdl_rendertexture/4, sdl_renderpresent/1,
+                sdl_updatetexture/4, sdl_createtexture/6,
+                sdl_locktexture/4, sdl_unlocktexture/1,
                 img_load/2,
                 sdl_destroysurface/1, sdl_createsurfacefrom/6,
                 sdl_createtexturefromsurface/3, sdl_destroytexture/1,
@@ -22,6 +24,7 @@ error:has_type(sdl_init_flag,   X) :- sdl_init_flag(X, _).
 error:has_type(sdl_window_flag, X) :- sdl_window_flag(X, _).
 error:has_type(sdl_windowpos,   X) :- ( atom(X) -> sdl_windowpos(X, _) ; integer(X) ).
 error:has_type(sdl_pixel_format, X) :- sdl_pixel_format(X, _).
+error:has_type(sdl_texture_access, X) :- sdl_texture_access(X, _).
 
 % Rich error messages listing the valid atoms for each flag type.
 :- multifile prolog:error_message//1.
@@ -37,6 +40,9 @@ prolog:error_message(type_error(sdl_windowpos, Culprit)) -->
 prolog:error_message(type_error(sdl_pixel_format, Culprit)) -->
    { findall(F, sdl_pixel_format(F, _), Fs) },
    [ 'sdl_pixel_format (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_texture_access, Culprit)) -->
+   { findall(F, sdl_texture_access(F, _), Fs) },
+   [ 'sdl_texture_access (one of ~q), found ~q'-[Fs, Culprit] ].
 
 user:portray(Window) :-
    blob(Window, sdl_window_blob), !,
@@ -234,4 +240,54 @@ sdl_createsurfacefrom(Surface, Width, Height, Format, Pixels, Pitch) :-
    must_be(ptr_blob, Pixels),
    must_be(integer, Pitch),
    sdl_pixel_format(Format, IntFormat),
-   sdl_createsurfacefrom_(Surface, Width, Height, IntFormat, Pixels, Pitch).
+    sdl_createsurfacefrom_(Surface, Width, Height, IntFormat, Pixels, Pitch).
+
+% --- update texture ---------------------------------------------------------
+% Updates a texture with new pixel data from a PtrBlob.  Avoids
+% creating/destroying a texture every frame when streaming dynamically
+% rendered content (e.g. cairo).  Rect is null for the entire texture.
+
+sdl_updatetexture(Texture, Rect, Pixels, Pitch) :-
+   must_be(sdl_texture_blob, Texture),
+   must_be((compound(rect(number, number, number, number)) ; oneof([null])), Rect),
+   must_be(ptr_blob, Pixels),
+   must_be(integer, Pitch),
+   sdl_updatetexture_(Texture, Rect, Pixels, Pitch).
+
+% --- texture access enum ----------------------------------------------------
+
+sdl_texture_access(static, 0).
+sdl_texture_access(streaming, 1).
+sdl_texture_access(target, 2).
+
+% --- create texture ---------------------------------------------------------
+% Creates a texture with the specified format, access mode, and dimensions.
+% Use sdl_createtexture/6 with streaming access for textures that are
+% updated frequently (e.g. cairo-rendered content each frame).
+
+sdl_createtexture(Texture, Renderer, Format, Access, Width, Height) :-
+   must_be(var, Texture),
+   must_be(sdl_renderer_blob, Renderer),
+   must_be(sdl_pixel_format, Format),
+   must_be(sdl_texture_access, Access),
+   must_be(positive_integer, Width),
+   must_be(positive_integer, Height),
+   sdl_pixel_format(Format, IntFormat),
+   sdl_texture_access(Access, IntAccess),
+   sdl_createtexture_(Texture, Renderer, IntFormat, IntAccess, Width, Height).
+
+% --- lock / unlock texture --------------------------------------------------
+% Zero-copy rendering: lock the texture to get a direct pixel pointer
+% (PtrBlob), write to it (e.g. via cairo_image_surface_create_for_data),
+% then unlock to submit the changes to the GPU.
+
+sdl_locktexture(Texture, Rect, Pixels, Pitch) :-
+   must_be(sdl_texture_blob, Texture),
+   must_be((compound(rect(number, number, number, number)) ; oneof([null])), Rect),
+   must_be(var, Pixels),
+   must_be(var, Pitch),
+   sdl_locktexture_(Texture, Rect, Pixels, Pitch).
+
+sdl_unlocktexture(Texture) :-
+   must_be(sdl_texture_blob, Texture),
+   sdl_unlocktexture_(Texture).

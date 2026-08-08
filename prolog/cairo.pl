@@ -1,4 +1,5 @@
 :- module(cairo, [cairo_image_surface_create/4,
+                  cairo_image_surface_create_for_data/6,
                   cairo_surface_destroy/1, cairo_surface_flush/1,
                   cairo_image_surface_get_data/2, cairo_image_surface_get_width/2,
                   cairo_image_surface_get_height/2, cairo_image_surface_get_stride/2,
@@ -50,13 +51,13 @@ user:portray(Context) :-
 % --- enum tables ------------------------------------------------------------
 % cairo_format_t: see cairo/cairo.h.  argb32 is the natural pairing with
 % SDL_PIXELFORMAT_ARGB32 (native-endian 0xAARRGGBB).
-cairo_format(invalid, 0).
-cairo_format(argb32, 1).
-cairo_format(rgb24, 2).
-cairo_format(a8, 3).
-cairo_format(a1, 4).
-cairo_format(rgb16_565, 5).
-cairo_format(rgb30, 6).
+cairo_format(invalid, -1).
+cairo_format(argb32, 0).
+cairo_format(rgb24, 1).
+cairo_format(a8, 2).
+cairo_format(a1, 3).
+cairo_format(rgb16_565, 4).
+cairo_format(rgb30, 5).
 
 % cairo_antialias_t
 cairo_antialias(default, 0).
@@ -86,6 +87,19 @@ cairo_image_surface_create(Surface, Format, Width, Height) :-
    must_be(positive_integer, Height),
    cairo_format(Format, IntFormat),
    cairo_image_surface_create_(Surface, IntFormat, Width, Height).
+
+% Creates a cairo image surface backed by external pixel data (e.g. an
+% SDL locked texture).  The Pixels PtrBlob must stay alive while the
+% surface is in use — the surface blob holds a parent ref to it.
+cairo_image_surface_create_for_data(Surface, Pixels, Format, Width, Height, Stride) :-
+   must_be(var, Surface),
+   must_be(ptr_blob, Pixels),
+   must_be(cairo_format, Format),
+   must_be(positive_integer, Width),
+   must_be(positive_integer, Height),
+   must_be(integer, Stride),
+   cairo_format(Format, IntFormat),
+   cairo_image_surface_create_for_data_(Surface, Pixels, IntFormat, Width, Height, Stride).
 
 cairo_surface_destroy(Surface) :-
    must_be(cairo_surface_blob, Surface),
@@ -137,7 +151,7 @@ cairo_destroy(Context) :-
 
 cairo_set_source_rgba(Context, R, G, B, A) :-
    must_be(cairo_context_blob, Context),
-   maplist(must_be(float), [R, G, B, A]),
+   maplist(must_be(number), [R, G, B, A]),
    cairo_set_source_rgba_(Context, R, G, B, A).
 
 % --- graphics state ---------------------------------------------------------
@@ -150,7 +164,7 @@ cairo_set_antialias(Context, Antialias) :-
 
 cairo_set_line_width(Context, Width) :-
    must_be(cairo_context_blob, Context),
-   must_be(float, Width),
+   must_be(number, Width),
    cairo_set_line_width_(Context, Width).
 
 cairo_set_line_cap(Context, Cap) :-
@@ -181,32 +195,32 @@ cairo_close_path(Context) :-
 
 cairo_move_to(Context, X, Y) :-
    must_be(cairo_context_blob, Context),
-   maplist(must_be(float), [X, Y]),
+   maplist(must_be(number), [X, Y]),
    cairo_move_to_(Context, X, Y).
 
 cairo_line_to(Context, X, Y) :-
    must_be(cairo_context_blob, Context),
-   maplist(must_be(float), [X, Y]),
+   maplist(must_be(number), [X, Y]),
    cairo_line_to_(Context, X, Y).
 
 cairo_rectangle(Context, X, Y, Width, Height) :-
    must_be(cairo_context_blob, Context),
-   maplist(must_be(float), [X, Y, Width, Height]),
+   maplist(must_be(number), [X, Y, Width, Height]),
    cairo_rectangle_(Context, X, Y, Width, Height).
 
 cairo_arc(Context, Xc, Yc, Radius, Angle1, Angle2) :-
    must_be(cairo_context_blob, Context),
-   maplist(must_be(float), [Xc, Yc, Radius, Angle1, Angle2]),
+   maplist(must_be(number), [Xc, Yc, Radius, Angle1, Angle2]),
    cairo_arc_(Context, Xc, Yc, Radius, Angle1, Angle2).
 
 cairo_arc_negative(Context, Xc, Yc, Radius, Angle1, Angle2) :-
    must_be(cairo_context_blob, Context),
-   maplist(must_be(float), [Xc, Yc, Radius, Angle1, Angle2]),
+   maplist(must_be(number), [Xc, Yc, Radius, Angle1, Angle2]),
    cairo_arc_negative_(Context, Xc, Yc, Radius, Angle1, Angle2).
 
 cairo_curve_to(Context, X1, Y1, X2, Y2, X3, Y3) :-
    must_be(cairo_context_blob, Context),
-   maplist(must_be(float), [X1, Y1, X2, Y2, X3, Y3]),
+   maplist(must_be(number), [X1, Y1, X2, Y2, X3, Y3]),
    cairo_curve_to_(Context, X1, Y1, X2, Y2, X3, Y3).
 
 % --- drawing ----------------------------------------------------------------
