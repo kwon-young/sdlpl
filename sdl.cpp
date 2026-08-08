@@ -2,6 +2,7 @@
 #include <SDL3_image/SDL_image.h>
 #include <SWI-cpp2.h>
 #include <string>
+#include "ptr.h"
 
 struct SDLWindowBlob;
 
@@ -89,11 +90,18 @@ static PL_blob_t sdl_surface_blob =
 
 struct SDLSurfaceBlob : public PlBlob {
   SDL_Surface *surface_;
+  PlAtom parent_;
 
-  explicit SDLSurfaceBlob() : PlBlob(&sdl_surface_blob) {}
+  explicit SDLSurfaceBlob()
+      : PlBlob(&sdl_surface_blob), surface_(NULL), parent_(PlAtom::null) {}
 
   explicit SDLSurfaceBlob(SDL_Surface *surface)
-      : PlBlob(&sdl_surface_blob), surface_(surface) {}
+      : PlBlob(&sdl_surface_blob), surface_(surface), parent_(PlAtom::null) {}
+
+  explicit SDLSurfaceBlob(SDL_Surface *surface, PlAtom parent)
+      : PlBlob(&sdl_surface_blob), surface_(surface), parent_(parent) {
+    parent_.register_ref();
+  }
 
   PL_BLOB_SIZE
 
@@ -105,6 +113,10 @@ struct SDLSurfaceBlob : public PlBlob {
     if (surface_ != NULL) {
       SDL_DestroySurface(surface_);
       surface_ = NULL;
+    }
+    if (parent_.not_null()) {
+      parent_.unregister_ref();
+      parent_.set_null();
     }
   }
 
@@ -429,3 +441,28 @@ PREDICATE(sdl_renderfillrect_, 2) {
   }
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// Surface from existing pixel data.  The pixels pointer is borrowed from
+// a PtrBlob (created by e.g. cairo_image_surface_get_data).  The resulting
+// SDLSurfaceBlob holds a parent_ ref to the PtrBlob so the pointer stays
+// valid for the surface's lifetime.  SDL does not copy the pixel data.
+// ---------------------------------------------------------------------------
+
+PREDICATE(sdl_createsurfacefrom_, 6) {
+  int width = A2.as_int();
+  int height = A3.as_int();
+  SDL_PixelFormat format = (SDL_PixelFormat)A4.as_uint32_t();
+  auto ptr_ref = PlBlobV<PtrBlob>::cast_ex(A5, *ptr_blob_type());
+  int pitch = A6.as_int();
+  SDL_Surface *surface =
+      SDL_CreateSurfaceFrom(width, height, format, ptr_ref->ptr, pitch);
+  if (surface == NULL) {
+    throw PlUnknownError(SDL_GetError());
+  }
+  auto ref = std::unique_ptr<PlBlob>(
+      new SDLSurfaceBlob(surface, ptr_ref->symbol_));
+  return A1.unify_blob(&ref);
+}
+
+

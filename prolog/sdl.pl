@@ -3,13 +3,15 @@
                 sdl_createrenderer/3, sdl_setrendervsync/2, sdl_destroyrenderer/1,
                 sdl_renderclear/1, sdl_rendertexture/4, sdl_renderpresent/1,
                 img_load/2,
-                sdl_destroysurface/1,
+                sdl_destroysurface/1, sdl_createsurfacefrom/6,
                 sdl_createtexturefromsurface/3, sdl_destroytexture/1,
                 sdl_pollevent/1,
                 sdl_setrenderdrawcolor/5, sdl_renderrect/2, sdl_renderfillrect/2,
-                sdl_init_flag/2, sdl_window_flag/2, sdl_windowpos/2
+                sdl_init_flag/2, sdl_window_flag/2, sdl_windowpos/2,
+                sdl_pixel_format/2
                 ]).
 :- use_foreign_library(foreign(sdl)).
+:- use_module(library(ptr)).
 
 :- multifile error:has_type/2.
 error:has_type(sdl_window_blob,   X) :- blob(X, sdl_window_blob).
@@ -19,6 +21,7 @@ error:has_type(sdl_texture_blob,  X) :- blob(X, sdl_texture_blob).
 error:has_type(sdl_init_flag,   X) :- sdl_init_flag(X, _).
 error:has_type(sdl_window_flag, X) :- sdl_window_flag(X, _).
 error:has_type(sdl_windowpos,   X) :- ( atom(X) -> sdl_windowpos(X, _) ; integer(X) ).
+error:has_type(sdl_pixel_format, X) :- sdl_pixel_format(X, _).
 
 % Rich error messages listing the valid atoms for each flag type.
 :- multifile prolog:error_message//1.
@@ -31,6 +34,9 @@ prolog:error_message(type_error(sdl_window_flag, Culprit)) -->
 prolog:error_message(type_error(sdl_windowpos, Culprit)) -->
    { findall(F, sdl_windowpos(F, _), Fs) },
    [ 'sdl_windowpos (one of ~q or an integer pixel offset), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_pixel_format, Culprit)) -->
+   { findall(F, sdl_pixel_format(F, _), Fs) },
+   [ 'sdl_pixel_format (one of ~q), found ~q'-[Fs, Culprit] ].
 
 user:portray(Window) :-
    blob(Window, sdl_window_blob), !,
@@ -185,3 +191,47 @@ sdl_renderfillrect(Renderer, Rect) :-
    must_be(sdl_renderer_blob, Renderer),
    must_be(compound(rect(number, number, number, number)), Rect),
    sdl_renderfillrect_(Renderer, Rect).
+
+% --- pixel formats ----------------------------------------------------------
+% The *8888, *24, and *565 formats are platform-independent.  The *32
+% aliases are platform-dependent: they resolve to different concrete
+% 8888 formats depending on SDL_BYTEORDER.  The values below are for
+% little-endian (x86/ARM-LE); on big-endian they would swap.  Since the
+% pack ships as a unit (.pl + .so built for the same platform), this is
+% correct.
+
+sdl_pixel_format(argb8888, 0x16362004).
+sdl_pixel_format(rgba8888, 0x16462004).
+sdl_pixel_format(bgra8888, 0x16862004).
+sdl_pixel_format(abgr8888, 0x16762004).
+sdl_pixel_format(xrgb8888, 0x16161804).
+sdl_pixel_format(xbgr8888, 0x16561804).
+sdl_pixel_format(rgbx8888, 0x16261804).
+sdl_pixel_format(bgrx8888, 0x16661804).
+sdl_pixel_format(argb32, 0x16862004).  % = bgra8888 on LE
+sdl_pixel_format(rgba32, 0x16762004).  % = abgr8888 on LE
+sdl_pixel_format(bgra32, 0x16362004).  % = argb8888 on LE
+sdl_pixel_format(abgr32, 0x16462004).  % = rgba8888 on LE
+sdl_pixel_format(xrgb32, 0x16661804).  % = bgrx8888 on LE
+sdl_pixel_format(xbgr32, 0x16261804).  % = rgbx8888 on LE
+sdl_pixel_format(rgbx32, 0x16561804).  % = xbgr8888 on LE
+sdl_pixel_format(bgrx32, 0x16161804).  % = xrgb8888 on LE
+sdl_pixel_format(rgb24, 0x17101803).
+sdl_pixel_format(bgr24, 0x17401803).
+sdl_pixel_format(rgb565, 0x15151002).
+sdl_pixel_format(bgr565, 0x15551002).
+
+% --- surface from pixel data ------------------------------------------------
+% Wraps existing pixel data (referenced by a PtrBlob) in an SDL surface
+% without copying.  The resulting surface holds a parent_ ref to the
+% PtrBlob, keeping the underlying buffer alive.  See SDL_CreateSurfaceFrom.
+
+sdl_createsurfacefrom(Surface, Width, Height, Format, Pixels, Pitch) :-
+   must_be(var, Surface),
+   must_be(positive_integer, Width),
+   must_be(positive_integer, Height),
+   must_be(sdl_pixel_format, Format),
+   must_be(ptr_blob, Pixels),
+   must_be(integer, Pitch),
+   sdl_pixel_format(Format, IntFormat),
+   sdl_createsurfacefrom_(Surface, Width, Height, IntFormat, Pixels, Pitch).
