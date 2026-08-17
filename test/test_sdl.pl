@@ -385,8 +385,7 @@ test(begingpurenderpass, [
             sdl_quit))]) :-
    (  Texture == null
    -> true
-   ;  Target = color_target(Texture, 0, 0, fcolor(0.0,0.0,0.0,1.0),
-                            clear, store, null, 0, 0, false, false),
+   ;  make_color_target([texture(Texture), load_op(clear), store_op(store)], Target),
       sdl_begingpurenderpass(RenderPass, CmdBuf, [Target], null)
    ).
 
@@ -399,8 +398,7 @@ test(endgpurenderpass, [
           sdl_waitandacquiregpuswapchaintexture(CmdBuf, Window, Texture, _, _),
           (  Texture == null
           -> RenderPass = null
-          ;  Target = color_target(Texture, 0, 0, fcolor(0.0,0.0,0.0,1.0),
-                                   clear, store, null, 0, 0, false, false),
+          ;  make_color_target([texture(Texture), load_op(clear), store_op(store)], Target),
              sdl_begingpurenderpass(RenderPass, CmdBuf, [Target], null)
           ))),
    cleanup((sdl_submitgpucommandbuffer(CmdBuf),
@@ -446,9 +444,10 @@ test(creategputexture, [
    cleanup((sdl_destroygpudevice(Device),
             sdl_quit))]) :-
    setup_call_cleanup(
-      sdl_creategputexture(Texture, Device,
-         gpu_texture_create_info('2d', d24_unorm, [depth_stencil_target],
-                                 400, 600, 1, 1, 1)),
+      (  make_gpu_texture_create_info([format(d24_unorm),
+                                       usage([depth_stencil_target]),
+                                       width(400), height(600)], Info),
+         sdl_creategputexture(Texture, Device, Info) ),
       true,
       sdl_releasegputexture(Texture)).
 
@@ -458,17 +457,19 @@ test(creategputexture_color, [
    cleanup((sdl_destroygpudevice(Device),
             sdl_quit))]) :-
    setup_call_cleanup(
-      sdl_creategputexture(Texture, Device,
-         gpu_texture_create_info('2d', b8g8r8a8_unorm, [color_target],
-                                 400, 600, 1, 1, 1)),
+      (  make_gpu_texture_create_info([format(b8g8r8a8_unorm),
+                                       usage([color_target]),
+                                       width(400), height(600)], Info),
+         sdl_creategputexture(Texture, Device, Info) ),
       true,
       sdl_releasegputexture(Texture)).
 
 test(creategputexture_device_type_error, [
    error(type_error(sdl_gpu_device_blob, not_a_blob))]) :-
-   sdl_creategputexture(_, not_a_blob,
-      gpu_texture_create_info('2d', d24_unorm, [depth_stencil_target],
-                              400, 600, 1, 1, 1)).
+   make_gpu_texture_create_info([format(d24_unorm),
+                                 usage([depth_stencil_target]),
+                                 width(400), height(600)], Info),
+   sdl_creategputexture(_, not_a_blob, Info).
 
 test(creategputexture_format_type_error, [
    setup((sdl_init([video]),
@@ -476,9 +477,10 @@ test(creategputexture_format_type_error, [
    cleanup((sdl_destroygpudevice(Device),
             sdl_quit)),
    error(type_error(sdl_gpu_texture_format, bogus))]) :-
-   sdl_creategputexture(_, Device,
-      gpu_texture_create_info('2d', bogus, [depth_stencil_target],
-                              400, 600, 1, 1, 1)).
+   make_gpu_texture_create_info([format(bogus),
+                                 usage([depth_stencil_target]),
+                                 width(400), height(600)], Info),
+   sdl_creategputexture(_, Device, Info).
 
 test(releasegputexture_type_error, [
    error(type_error(sdl_gpu_texture_blob, not_a_blob))]) :-
@@ -487,9 +489,10 @@ test(releasegputexture_type_error, [
 test(releasegputexture_double_release, [
    setup((sdl_init([video]),
           sdl_creategpudevice(Device, [spirv], false, null),
-          sdl_creategputexture(Texture, Device,
-             gpu_texture_create_info('2d', d24_unorm, [depth_stencil_target],
-                                     400, 600, 1, 1, 1)))),
+          make_gpu_texture_create_info([format(d24_unorm),
+                                        usage([depth_stencil_target]),
+                                        width(400), height(600)], Info),
+          sdl_creategputexture(Texture, Device, Info))),
    cleanup((sdl_destroygpudevice(Device),
             sdl_quit)),
    error(existence_error(texture, _))]) :-
@@ -503,9 +506,10 @@ test(begingpurenderpass_with_depthstencil, [
           sdl_createwindow(Window, "", 400, 600, [vulkan]),
           sdl_creategpudevice(Device, [spirv], false, null),
           sdl_claimwindowforgpudevice(Device, Window),
-          sdl_creategputexture(DepthTex, Device,
-             gpu_texture_create_info('2d', d24_unorm, [depth_stencil_target],
-                                     400, 600, 1, 1, 1)),
+          make_gpu_texture_create_info([format(d24_unorm),
+                                        usage([depth_stencil_target]),
+                                        width(400), height(600)], DepthInfo),
+          sdl_creategputexture(DepthTex, Device, DepthInfo),
           sdl_acquiregpucommandbuffer(CmdBuf, Device),
           sdl_waitandacquiregpuswapchaintexture(CmdBuf, Window, Tex, _, _))),
    cleanup((sdl_endgpurenderpass(RenderPass),
@@ -517,10 +521,8 @@ test(begingpurenderpass_with_depthstencil, [
             sdl_quit))]) :-
    (  Tex == null
    -> true
-   ;  ColorTarget = color_target(Tex, 0, 0, fcolor(0.0,0.0,0.0,1.0),
-                                 clear, store, null, 0, 0, false, false),
-      DS = depth_stencil_target(DepthTex, 1.0, clear, store,
-                                dont_care, dont_care, false, 0, 0, 0),
+   ;  make_color_target([texture(Tex), load_op(clear), store_op(store)], ColorTarget),
+      make_depth_stencil_target([texture(DepthTex), load_op(clear), store_op(store)], DS),
       sdl_begingpurenderpass(RenderPass, CmdBuf, [ColorTarget], DS)
    ).
 
@@ -537,8 +539,7 @@ test(endgpurenderpass_double_end, [
           sdl_waitandacquiregpuswapchaintexture(CmdBuf, Window, Texture, _, _),
           (  Texture == null
           -> true
-          ;  Target = color_target(Texture, 0, 0, fcolor(0.0,0.0,0.0,1.0),
-                                   clear, store, null, 0, 0, false, false),
+          ;  make_color_target([texture(Texture), load_op(clear), store_op(store)], Target),
              sdl_begingpurenderpass(RenderPass, CmdBuf, [Target], null),
              sdl_endgpurenderpass(RenderPass)
           ))),

@@ -30,10 +30,14 @@
                 sdl_gpu_texture_usage/2,
                 sdl_gpu_sample_count/2,
                 sdl_gpu_shader_format/2,
-                sdl_getnumgpudrivers/1, sdl_getgpudriver/2
+                sdl_getnumgpudrivers/1, sdl_getgpudriver/2,
+                make_color_target/2, default_color_target/1, is_color_target/1,
+                make_depth_stencil_target/2, default_depth_stencil_target/1, is_depth_stencil_target/1,
+                make_gpu_texture_create_info/2, default_gpu_texture_create_info/1, is_gpu_texture_create_info/1
                 ]).
 :- use_foreign_library(foreign(sdl)).
 :- use_module(library(ptr)).
+:- use_module(library(record)).
 
 :- multifile error:has_type/2.
 error:has_type(sdl_window_blob,   X) :- blob(X, sdl_window_blob).
@@ -45,21 +49,28 @@ error:has_type(sdl_gpu_cmdbuf_blob, X) :- blob(X, sdl_gpu_cmdbuf_blob).
 error:has_type(sdl_gpu_swapchain_texture_blob, X) :- blob(X, sdl_gpu_swapchain_texture_blob).
 error:has_type(sdl_gpu_renderpass_blob, X) :- blob(X, sdl_gpu_renderpass_blob).
 error:has_type(sdl_gpu_texture_blob, X) :- blob(X, sdl_gpu_texture_blob).
+% sdl_gpu_texture accepts either a swapchain texture blob or a regular GPU
+% texture blob.  Used as a field type in color_target and depth_stencil_target
+% records.
+error:has_type(sdl_gpu_texture, X) :-
+   (  blob(X, sdl_gpu_swapchain_texture_blob)
+   ;  blob(X, sdl_gpu_texture_blob)
+   ).
+% fcolor(R,G,B,A) — maps to SDL_FColor.  Fields are numbers (int or float);
+% the C++ layer converts via as_float().
+error:has_type(fcolor, X) :-
+   nonvar(X),
+   compound_name_arity(X, fcolor, 4),
+   arg(1, X, R), is_of_type(number, R),
+   arg(2, X, G), is_of_type(number, G),
+   arg(3, X, B), is_of_type(number, B),
+   arg(4, X, A), is_of_type(number, A).
 error:has_type(sdl_gpu_load_op, X) :- sdl_gpu_load_op(X, _).
 error:has_type(sdl_gpu_store_op, X) :- sdl_gpu_store_op(X, _).
 error:has_type(sdl_gpu_texture_type, X) :- sdl_gpu_texture_type(X, _).
 error:has_type(sdl_gpu_texture_format, X) :- sdl_gpu_texture_format(X, _).
 error:has_type(sdl_gpu_texture_usage, X) :- sdl_gpu_texture_usage(X, _).
 error:has_type(sdl_gpu_sample_count, X) :- sdl_gpu_sample_count(X, _).
-error:has_type(sdl_gpu_color_target, X) :-
-   compound(X),
-   compound_name_arity(X, color_target, 11).
-error:has_type(sdl_gpu_depth_stencil_target, X) :-
-   compound(X),
-   compound_name_arity(X, depth_stencil_target, 10).
-error:has_type(sdl_gpu_texture_create_info, X) :-
-   compound(X),
-   compound_name_arity(X, gpu_texture_create_info, 8).
 error:has_type(sdl_init_flag,   X) :- sdl_init_flag(X, _).
 error:has_type(sdl_window_flag, X) :- sdl_window_flag(X, _).
 error:has_type(sdl_windowpos,   X) :- ( atom(X) -> sdl_windowpos(X, _) ; integer(X) ).
@@ -95,6 +106,10 @@ prolog:error_message(type_error(sdl_gpu_renderpass_blob, Culprit)) -->
    [ 'sdl_gpu_renderpass_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture_blob, Culprit)) -->
    [ 'sdl_gpu_texture_blob, found ~q'-[Culprit] ].
+prolog:error_message(type_error(sdl_gpu_texture, Culprit)) -->
+   [ 'sdl_gpu_texture (swapchain or regular texture blob), found ~q'-[Culprit] ].
+prolog:error_message(type_error(fcolor, Culprit)) -->
+   [ 'fcolor (fcolor(R,G,B,A) with numeric fields), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_load_op, Culprit)) -->
    { findall(F, sdl_gpu_load_op(F, _), Fs) },
    [ 'sdl_gpu_load_op (one of ~q), found ~q'-[Fs, Culprit] ].
@@ -105,8 +120,7 @@ prolog:error_message(type_error(sdl_gpu_texture_type, Culprit)) -->
    { findall(F, sdl_gpu_texture_type(F, _), Fs) },
    [ 'sdl_gpu_texture_type (one of ~q), found ~q'-[Fs, Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture_format, Culprit)) -->
-   { findall(F, sdl_gpu_texture_format(F, _), Fs) },
-   [ 'sdl_gpu_texture_format, found ~q'-[Culprit] ].
+   [ 'sdl_gpu_texture_format (one of 105 format atoms), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture_usage, Culprit)) -->
    { findall(F, sdl_gpu_texture_usage(F, _), Fs) },
    [ 'sdl_gpu_texture_usage (one of ~q), found ~q'-[Fs, Culprit] ].
@@ -114,11 +128,11 @@ prolog:error_message(type_error(sdl_gpu_sample_count, Culprit)) -->
    { findall(F, sdl_gpu_sample_count(F, _), Fs) },
    [ 'sdl_gpu_sample_count (one of ~q), found ~q'-[Fs, Culprit] ].
 prolog:error_message(type_error(sdl_gpu_color_target, Culprit)) -->
-   [ 'sdl_gpu_color_target (color_target/11 compound), found ~q'-[Culprit] ].
+   [ 'sdl_gpu_color_target (record color_target/11), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_depth_stencil_target, Culprit)) -->
-   [ 'sdl_gpu_depth_stencil_target (depth_stencil_target/10 compound), found ~q'-[Culprit] ].
+   [ 'sdl_gpu_depth_stencil_target (record depth_stencil_target/10), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture_create_info, Culprit)) -->
-   [ 'sdl_gpu_texture_create_info (gpu_texture_create_info/8 compound), found ~q'-[Culprit] ].
+   [ 'sdl_gpu_texture_create_info (record gpu_texture_create_info/8), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_shader_format, Culprit)) -->
    { findall(F, sdl_gpu_shader_format(F, _), Fs) },
    [ 'sdl_gpu_shader_format (one of ~q), found ~q'-[Fs, Culprit] ].
@@ -544,7 +558,7 @@ sdl_waitandacquiregpuswapchaintexture(CmdBuf, Window, Texture, W, H) :-
    must_be(var, H),
    sdl_waitandacquiregpuswapchaintexture_(CmdBuf, Window, Texture, W, H).
 
-% --- SDL_gpu: load / store ops ----------------------------------------------
+% --- SDL_gpu: enum/flag tables ----------------------------------------------
 % SDL_GPULoadOp controls what happens to the render target's previous
 % contents at the start of a render pass.  SDL_GPUStoreOp controls what
 % happens to the render pass results at the end.
@@ -557,76 +571,6 @@ sdl_gpu_store_op(store, 0).
 sdl_gpu_store_op(dont_care, 1).
 sdl_gpu_store_op(resolve, 2).
 sdl_gpu_store_op(resolve_and_store, 3).
-
-% --- SDL_gpu: render pass ---------------------------------------------------
-% A render pass targets one or more color textures (typically the swapchain
-% texture) and optionally a depth-stencil texture.  All graphics operations
-% must take place inside a render pass.  ColorTargets is a list of
-% color_target/11 terms.  DepthStencil is `null` (no depth-stencil target)
-% or a depth_stencil_target/10 compound.
-%
-% The color_target/11 compound maps 1-to-1 to SDL_GPUColorTargetInfo:
-%   color_target(Texture, MipLevel, LayerOrDepthPlane, ClearColor,
-%                LoadOp, StoreOp, ResolveTexture, ResolveMipLevel,
-%                ResolveLayer, Cycle, CycleResolveTexture)
-% where ClearColor is fcolor(R,G,B,A) and LoadOp/StoreOp are atoms from
-% sdl_gpu_load_op/sdl_gpu_store_op.  ResolveTexture is `null` or a GPU
-% texture blob (when store_op is resolve/resolve_and_store).
-%
-% The depth_stencil_target/10 compound maps 1-to-1 to
-% SDL_GPUDepthStencilTargetInfo:
-%   depth_stencil_target(Texture, ClearDepth, LoadOp, StoreOp,
-%                        StencilLoadOp, StencilStoreOp, Cycle,
-%                        ClearStencil, MipLevel, Layer)
-% where ClearDepth is a float, ClearStencil an integer 0-255, and the
-% load/store ops are atoms from sdl_gpu_load_op/sdl_gpu_store_op.
-%
-% RAII: the render pass blob holds a parent ref to the command buffer.  If
-% GC'd without being explicitly ended, destroy() calls SDL_EndGPURenderPass
-% as a safety net.  After explicit end the blob is marked consumed.  Ending
-% an already-ended render pass raises existence_error(render_pass, Pass).
-
-sdl_begingpurenderpass(RenderPass, CmdBuf, ColorTargets, DepthStencil) :-
-   must_be(var, RenderPass),
-   must_be(sdl_gpu_cmdbuf_blob, CmdBuf),
-   must_be(list(sdl_gpu_color_target), ColorTargets),
-   must_be((oneof([null]) ; sdl_gpu_depth_stencil_target), DepthStencil),
-   maplist(color_target_int, ColorTargets, IntTargets),
-   depth_stencil_int(DepthStencil, IntDepthStencil),
-   sdl_begingpurenderpass_(RenderPass, CmdBuf, IntTargets, IntDepthStencil).
-
-sdl_endgpurenderpass(RenderPass) :-
-   must_be(sdl_gpu_renderpass_blob, RenderPass),
-   sdl_endgpurenderpass_(RenderPass).
-
-% Translate color_target/11 atoms (load_op, store_op) to ints for the
-% foreign predicate.  The compound is reconstructed with int values.
-color_target_int(
-   color_target(Texture, MipLevel, LayerOrDepthPlane, ClearColor,
-                LoadOp, StoreOp, ResolveTexture, ResolveMipLevel,
-                ResolveLayer, Cycle, CycleResolveTexture),
-   color_target(Texture, MipLevel, LayerOrDepthPlane, ClearColor,
-                IntLoadOp, IntStoreOp, ResolveTexture, ResolveMipLevel,
-                ResolveLayer, Cycle, CycleResolveTexture)) :-
-   sdl_gpu_load_op(LoadOp, IntLoadOp),
-   sdl_gpu_store_op(StoreOp, IntStoreOp).
-
-% Translate depth_stencil_target/10 atoms (load_op, store_op, stencil_load_op,
-% stencil_store_op) to ints for the foreign predicate.  null passes through.
-depth_stencil_int(null, null) :- !.
-depth_stencil_int(
-   depth_stencil_target(Texture, ClearDepth, LoadOp, StoreOp,
-                        StencilLoadOp, StencilStoreOp, Cycle,
-                        ClearStencil, MipLevel, Layer),
-   depth_stencil_target(Texture, ClearDepth, IntLoadOp, IntStoreOp,
-                        IntStencilLoadOp, IntStencilStoreOp, Cycle,
-                        ClearStencil, MipLevel, Layer)) :-
-   sdl_gpu_load_op(LoadOp, IntLoadOp),
-   sdl_gpu_store_op(StoreOp, IntStoreOp),
-   sdl_gpu_load_op(StencilLoadOp, IntStencilLoadOp),
-   sdl_gpu_store_op(StencilStoreOp, IntStencilStoreOp).
-
-% --- SDL_gpu: texture type, format, usage, sample count ---------------------
 
 sdl_gpu_texture_type('2d',         0).
 sdl_gpu_texture_type('2d_array',   1).
@@ -755,16 +699,117 @@ sdl_gpu_texture_format(astc_10x10_float, 102).
 sdl_gpu_texture_format(astc_12x10_float, 103).
 sdl_gpu_texture_format(astc_12x12_float, 104).
 
+% --- SDL_gpu: struct records ------------------------------------------------
+% The following records map 1-to-1 to SDL_gpu structs.  Field order matches
+% the C struct (the foreign layer reads by position).  Field types are
+% checked automatically by is_<record>/1 (generated by library(record)).
+% Use make_<record>([field(Value), ...], Record) for partial construction
+% with defaults; unspecified fields get their default values.
+
+% SDL_GPUColorTargetInfo
+:- record color_target(
+   texture:sdl_gpu_texture,                                       % required
+   mip_level:nonneg=0,
+   layer_or_depth_plane:nonneg=0,
+   clear_color:fcolor=fcolor(0.0,0.0,0.0,1.0),
+   load_op:sdl_gpu_load_op,                                       % required
+   store_op:sdl_gpu_store_op,                                     % required
+   resolve_texture:(oneof([null]);sdl_gpu_texture)=null,
+   resolve_mip_level:nonneg=0,
+   resolve_layer:nonneg=0,
+   cycle:boolean=false,
+   cycle_resolve_texture:boolean=false
+).
+
+% SDL_GPUDepthStencilTargetInfo
+:- record depth_stencil_target(
+   texture:sdl_gpu_texture,                                       % required
+   clear_depth:number=1.0,
+   load_op:sdl_gpu_load_op,                                       % required
+   store_op:sdl_gpu_store_op,                                     % required
+   stencil_load_op:sdl_gpu_load_op=dont_care,
+   stencil_store_op:sdl_gpu_store_op=dont_care,
+   cycle:boolean=false,
+   clear_stencil:between(0,255)=0,
+   mip_level:between(0,255)=0,
+   layer:between(0,255)=0
+).
+
+% SDL_GPUTextureCreateInfo (props is always 0, omitted)
+:- record gpu_texture_create_info(
+   type:sdl_gpu_texture_type='2d',
+   format:sdl_gpu_texture_format,                                 % required
+   usage:list(sdl_gpu_texture_usage),                             % required
+   width:nonneg,                                                  % required
+   height:nonneg,                                                 % required
+   layer_count_or_depth:nonneg=1,
+   num_levels:nonneg=1,
+   sample_count:sdl_gpu_sample_count=1
+).
+
+% Type aliases backed by the generated is_*/1 predicates.
+error:has_type(sdl_gpu_color_target, X) :- is_color_target(X).
+error:has_type(sdl_gpu_depth_stencil_target, X) :- is_depth_stencil_target(X).
+error:has_type(sdl_gpu_texture_create_info, X) :- is_gpu_texture_create_info(X).
+
+% --- SDL_gpu: render pass ---------------------------------------------------
+% A render pass targets one or more color textures (typically the swapchain
+% texture) and optionally a depth-stencil texture.  All graphics operations
+% must take place inside a render pass.  ColorTargets is a list of
+% color_target records.  DepthStencil is `null` (no depth-stencil target)
+% or a depth_stencil_target record.
+%
+% RAII: the render pass blob holds a parent ref to the command buffer.  If
+% GC'd without being explicitly ended, destroy() calls SDL_EndGPURenderPass
+% as a safety net.  After explicit end the blob is marked consumed.  Ending
+% an already-ended render pass raises existence_error(render_pass, Pass).
+
+sdl_begingpurenderpass(RenderPass, CmdBuf, ColorTargets, DepthStencil) :-
+   must_be(var, RenderPass),
+   must_be(sdl_gpu_cmdbuf_blob, CmdBuf),
+   must_be(list(sdl_gpu_color_target), ColorTargets),
+   must_be((oneof([null]) ; sdl_gpu_depth_stencil_target), DepthStencil),
+   maplist(color_target_int, ColorTargets, IntTargets),
+   depth_stencil_int(DepthStencil, IntDepthStencil),
+   sdl_begingpurenderpass_(RenderPass, CmdBuf, IntTargets, IntDepthStencil).
+
+sdl_endgpurenderpass(RenderPass) :-
+   must_be(sdl_gpu_renderpass_blob, RenderPass),
+   sdl_endgpurenderpass_(RenderPass).
+
+% Translate color_target load_op/store_op atoms to ints for the foreign
+% predicate.  The compound is reconstructed with int values.
+color_target_int(
+   color_target(Texture, MipLevel, LayerOrDepthPlane, ClearColor,
+                LoadOp, StoreOp, ResolveTexture, ResolveMipLevel,
+                ResolveLayer, Cycle, CycleResolveTexture),
+   IntTarget) =>
+   sdl_gpu_load_op(LoadOp, IntLoadOp),
+   sdl_gpu_store_op(StoreOp, IntStoreOp),
+   IntTarget = color_target(Texture, MipLevel, LayerOrDepthPlane, ClearColor,
+                            IntLoadOp, IntStoreOp, ResolveTexture, ResolveMipLevel,
+                            ResolveLayer, Cycle, CycleResolveTexture).
+
+% Translate depth_stencil_target load/store op atoms to ints.  null passes
+% through unchanged.
+depth_stencil_int(null, IntTarget) => IntTarget = null.
+depth_stencil_int(
+   depth_stencil_target(Texture, ClearDepth, LoadOp, StoreOp,
+                        StencilLoadOp, StencilStoreOp, Cycle,
+                        ClearStencil, MipLevel, Layer),
+   IntTarget) =>
+   sdl_gpu_load_op(LoadOp, IntLoadOp),
+   sdl_gpu_store_op(StoreOp, IntStoreOp),
+   sdl_gpu_load_op(StencilLoadOp, IntStencilLoadOp),
+   sdl_gpu_store_op(StencilStoreOp, IntStencilStoreOp),
+   IntTarget = depth_stencil_target(Texture, ClearDepth, IntLoadOp, IntStoreOp,
+                                    IntStencilLoadOp, IntStencilStoreOp, Cycle,
+                                    ClearStencil, MipLevel, Layer).
+
 % --- SDL_gpu: create / release texture --------------------------------------
 % Creates a GPU texture (render target, sampler source, storage, etc.) or
-% releases it.  The gpu_texture_create_info/8 compound maps 1-to-1 to
-% SDL_GPUTextureCreateInfo (props is always 0):
-%   gpu_texture_create_info(Type, Format, Usage, Width, Height,
-%                           LayerCountOrDepth, NumLevels, SampleCount)
-% where Type is a sdl_gpu_texture_type atom, Format a sdl_gpu_texture_format
-% atom, Usage a list of sdl_gpu_texture_usage atoms (OR-ed), and SampleCount
-% a sdl_gpu_sample_count atom.  Width/Height/LayerCountOrDepth/NumLevels are
-% non-negative integers.
+% releases it.  The gpu_texture_create_info record maps 1-to-1 to
+% SDL_GPUTextureCreateInfo (props is always 0).
 %
 % The blob is owning: destroy() calls SDL_ReleaseGPUTexture.  It holds a
 % parent ref to the device, pinning it against GC.  Releasing an
@@ -774,16 +819,6 @@ sdl_creategputexture(Texture, Device, CreateInfo) :-
    must_be(var, Texture),
    must_be(sdl_gpu_device_blob, Device),
    must_be(sdl_gpu_texture_create_info, CreateInfo),
-   CreateInfo = gpu_texture_create_info(Type, Format, Usage, Width, Height,
-                                        LayerCountOrDepth, NumLevels, SampleCount),
-   must_be(sdl_gpu_texture_type, Type),
-   must_be(sdl_gpu_texture_format, Format),
-   must_be(list(sdl_gpu_texture_usage), Usage),
-   must_be(nonneg, Width),
-   must_be(nonneg, Height),
-   must_be(nonneg, LayerCountOrDepth),
-   must_be(nonneg, NumLevels),
-   must_be(sdl_gpu_sample_count, SampleCount),
    texture_create_info_int(CreateInfo, IntCreateInfo),
    sdl_creategputexture_(Texture, Device, IntCreateInfo).
 
@@ -791,15 +826,17 @@ sdl_releasegputexture(Texture) :-
    must_be(sdl_gpu_texture_blob, Texture),
    sdl_releasegputexture_(Texture).
 
-% Translate gpu_texture_create_info/8 atoms (Type, Format, Usage, SampleCount)
-% to ints for the foreign predicate.
+% Translate gpu_texture_create_info atoms (Type, Format, Usage, SampleCount)
+% to ints for the foreign predicate.  The compound is reconstructed with int
+% values.
 texture_create_info_int(
    gpu_texture_create_info(Type, Format, Usage, Width, Height,
                            LayerCountOrDepth, NumLevels, SampleCount),
-   gpu_texture_create_info(IntType, IntFormat, IntUsage, Width, Height,
-                           LayerCountOrDepth, NumLevels, IntSampleCount)) :-
+   IntInfo) =>
    sdl_gpu_texture_type(Type, IntType),
    sdl_gpu_texture_format(Format, IntFormat),
    maplist(sdl_gpu_texture_usage, Usage, UsageInts),
    or_list(UsageInts, IntUsage),
-   sdl_gpu_sample_count(SampleCount, IntSampleCount).
+   sdl_gpu_sample_count(SampleCount, IntSampleCount),
+   IntInfo = gpu_texture_create_info(IntType, IntFormat, IntUsage, Width, Height,
+                                     LayerCountOrDepth, NumLevels, IntSampleCount).
