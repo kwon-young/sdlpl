@@ -27,6 +27,9 @@
                 sdl_releasegpushader/1,
                 sdl_creategpugraphicspipeline/3,
                 sdl_releasegpugraphicspipeline/1,
+                sdl_creategpubuffer/4,
+                sdl_releasegpubuffer/1,
+                sdl_gpu_buffer_usage/2,
                 sdl_gpu_load_op/2,
                 sdl_gpu_store_op/2,
                 sdl_gpu_texture_type/2,
@@ -79,6 +82,7 @@ error:has_type(sdl_gpu_renderpass_blob, X) :- blob(X, sdl_gpu_renderpass_blob).
 error:has_type(sdl_gpu_texture_blob, X) :- blob(X, sdl_gpu_texture_blob).
 error:has_type(sdl_gpu_shader_blob, X) :- blob(X, sdl_gpu_shader_blob).
 error:has_type(sdl_gpu_pipeline_blob, X) :- blob(X, sdl_gpu_pipeline_blob).
+error:has_type(sdl_gpu_buffer_blob, X) :- blob(X, sdl_gpu_buffer_blob).
 % sdl_gpu_texture accepts either a swapchain texture blob or a regular GPU
 % texture blob.  Used as a field type in color_target and depth_stencil_target
 % records.
@@ -113,6 +117,7 @@ error:has_type(sdl_gpu_blend_factor, X) :- sdl_gpu_blend_factor(X, _).
 error:has_type(sdl_gpu_vertex_input_rate, X) :- sdl_gpu_vertex_input_rate(X, _).
 error:has_type(sdl_gpu_vertex_element_format, X) :- sdl_gpu_vertex_element_format(X, _).
 error:has_type(sdl_gpu_color_component, X) :- sdl_gpu_color_component(X, _).
+error:has_type(sdl_gpu_buffer_usage, X) :- sdl_gpu_buffer_usage(X, _).
 error:has_type(sdl_init_flag,   X) :- sdl_init_flag(X, _).
 error:has_type(sdl_window_flag, X) :- sdl_window_flag(X, _).
 error:has_type(sdl_windowpos,   X) :- ( atom(X) -> sdl_windowpos(X, _) ; integer(X) ).
@@ -152,6 +157,8 @@ prolog:error_message(type_error(sdl_gpu_shader_blob, Culprit)) -->
    [ 'sdl_gpu_shader_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_pipeline_blob, Culprit)) -->
    [ 'sdl_gpu_pipeline_blob, found ~q'-[Culprit] ].
+prolog:error_message(type_error(sdl_gpu_buffer_blob, Culprit)) -->
+   [ 'sdl_gpu_buffer_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture, Culprit)) -->
    [ 'sdl_gpu_texture (swapchain or regular texture blob), found ~q'-[Culprit] ].
 prolog:error_message(type_error(fcolor, Culprit)) -->
@@ -209,6 +216,9 @@ prolog:error_message(type_error(sdl_gpu_vertex_element_format, Culprit)) -->
 prolog:error_message(type_error(sdl_gpu_color_component, Culprit)) -->
    { findall(F, sdl_gpu_color_component(F, _), Fs) },
    [ 'sdl_gpu_color_component (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_buffer_usage, Culprit)) -->
+   { findall(F, sdl_gpu_buffer_usage(F, _), Fs) },
+   [ 'sdl_gpu_buffer_usage (one of ~q), found ~q'-[Fs, Culprit] ].
 prolog:error_message(type_error(sdl_gpu_color_target, Culprit)) -->
    [ 'sdl_gpu_color_target (record color_target/11), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_depth_stencil_target, Culprit)) -->
@@ -255,6 +265,9 @@ user:portray(Shader) :-
 user:portray(Pipeline) :-
    blob(Pipeline, sdl_gpu_pipeline_blob), !,
    sdl_gpu_pipeline_blob_portray(current_output, Pipeline).
+user:portray(Buffer) :-
+   blob(Buffer, sdl_gpu_buffer_blob), !,
+   sdl_gpu_buffer_blob_portray(current_output, Buffer).
 
 sdl_init_flag(audio, 0x00000010).
 sdl_init_flag(video, 0x00000020).
@@ -1322,3 +1335,30 @@ target_info_int(
    maplist(color_target_description_int, ColorTargetDescriptions, IntCTDs),
    sdl_gpu_texture_format(DepthStencilFormat, IntDSFormat),
    IntTI = target_info(IntCTDs, IntDSFormat, HasDepthStencilTarget).
+
+% --- SDL_gpu: create / release buffer ---------------------------------------
+% Creates a GPU buffer (vertex, index, indirect, or storage) and releases it.
+% Usage is a list of sdl_gpu_buffer_usage atoms (OR-ed together).  Size is the
+% buffer size in bytes.  The blob is owning: destroy() calls
+% SDL_ReleaseGPUBuffer.  Releasing an already-released buffer raises
+% existence_error(buffer, Buffer).
+
+sdl_gpu_buffer_usage(vertex,                0x00000001).
+sdl_gpu_buffer_usage(index,                 0x00000002).
+sdl_gpu_buffer_usage(indirect,              0x00000004).
+sdl_gpu_buffer_usage(graphics_storage_read, 0x00000008).
+sdl_gpu_buffer_usage(compute_storage_read,  0x00000010).
+sdl_gpu_buffer_usage(compute_storage_write, 0x00000020).
+
+sdl_creategpubuffer(Buffer, Device, Usage, Size) :-
+   must_be(var, Buffer),
+   must_be(sdl_gpu_device_blob, Device),
+   must_be(list(sdl_gpu_buffer_usage), Usage),
+   must_be(nonneg, Size),
+   maplist(sdl_gpu_buffer_usage, Usage, UsageInts),
+   or_list(UsageInts, IntUsage),
+   sdl_creategpubuffer_(Buffer, Device, IntUsage, Size).
+
+sdl_releasegpubuffer(Buffer) :-
+   must_be(sdl_gpu_buffer_blob, Buffer),
+   sdl_releasegpubuffer_(Buffer).

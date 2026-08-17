@@ -1631,4 +1631,93 @@ PREDICATE(sdl_releasegpugraphicspipeline_, 1) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// SDL_gpu buffer
+//
+// Created via SDL_CreateGPUBuffer with a buffer create info struct, and
+// released via SDL_ReleaseGPUBuffer.  The blob stores both the buffer and
+// device pointers (release needs both), and holds a parent ref to the device
+// for GC safety.  destroy() calls SDL_ReleaseGPUBuffer, so the buffer is
+// automatically freed if the blob is garbage-collected.
+// ---------------------------------------------------------------------------
+
+struct SDLGPUBufferBlob;
+
+static PL_blob_t sdl_gpu_buffer_blob =
+    PL_BLOB_DEFINITION(SDLGPUBufferBlob, "sdl_gpu_buffer_blob");
+
+struct SDLGPUBufferBlob : public PlBlob {
+  SDL_GPUBuffer *buffer_;
+  SDL_GPUDevice *device_;
+  PlAtom parent_;
+
+  explicit SDLGPUBufferBlob()
+      : PlBlob(&sdl_gpu_buffer_blob), buffer_(NULL), device_(NULL),
+        parent_(PlAtom::null) {}
+
+  explicit SDLGPUBufferBlob(SDL_GPUBuffer *buffer, SDL_GPUDevice *device,
+                            PlAtom parent)
+      : PlBlob(&sdl_gpu_buffer_blob), buffer_(buffer), device_(device),
+        parent_(parent) {
+    parent_.register_ref();
+  }
+
+  PL_BLOB_SIZE
+
+  void portray(PlStream &strm) const {
+    strm.printf("sdl_gpu_buffer_blob<%p>(%p)", this, buffer_);
+  }
+
+  void destroy() noexcept {
+    if (buffer_ != NULL) {
+      SDL_ReleaseGPUBuffer(device_, buffer_);
+      buffer_ = NULL;
+    }
+    device_ = NULL;
+    if (parent_.not_null()) {
+      parent_.unregister_ref();
+      parent_.set_null();
+    }
+  }
+
+  virtual ~SDLGPUBufferBlob() noexcept { destroy(); }
+};
+
+PREDICATE(sdl_gpu_buffer_blob_portray, 2) {
+  auto ref = PlBlobV<SDLGPUBufferBlob>::cast_ex(A2, sdl_gpu_buffer_blob);
+  PlStream strm(A1, 0);
+  ref->portray(strm);
+  return true;
+}
+
+// sdl_creategpubuffer_(-Buffer, +Device, +Usage:int, +Size:int)
+PREDICATE(sdl_creategpubuffer_, 4) {
+  auto device_ref = PlBlobV<SDLGPUDeviceBlob>::cast_ex(A2, sdl_gpu_device_blob);
+  SDL_GPUBufferCreateInfo info;
+  memset(&info, 0, sizeof(info));
+  info.usage = (SDL_GPUBufferUsageFlags)A3.as_uint32_t();
+  info.size = A4.as_uint32_t();
+  SDL_GPUBuffer *buffer =
+      SDL_CreateGPUBuffer(device_ref->device_, &info);
+  if (buffer == NULL) {
+    throw PlUnknownError(SDL_GetError());
+  }
+  auto ref = std::unique_ptr<PlBlob>(
+      new SDLGPUBufferBlob(buffer, device_ref->device_,
+                           device_ref->symbol_));
+  return A1.unify_blob(&ref);
+}
+
+// sdl_releasegpubuffer_(+Buffer)
+PREDICATE(sdl_releasegpubuffer_, 1) {
+  auto ref = PlBlobV<SDLGPUBufferBlob>::cast_ex(A1, sdl_gpu_buffer_blob);
+  if (ref->buffer_ == NULL) {
+    throw PlExistenceError("buffer", A1);
+  }
+  SDL_ReleaseGPUBuffer(ref->device_, ref->buffer_);
+  ref->buffer_ = NULL;
+  ref->device_ = NULL;
+  return true;
+}
+
 

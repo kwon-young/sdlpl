@@ -672,6 +672,54 @@ test(creategpugraphicspipeline_device_type_error, [
    error(type_error(sdl_gpu_device_blob, not_a_blob))]) :-
    sdl_creategpugraphicspipeline(_, not_a_blob, not_a_record).
 
+% --- SDL_gpu: create / release buffer ----------------------------------------
+
+test(creategpubuffer, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   setup_call_cleanup(
+      sdl_creategpubuffer(Buffer, Device, [vertex], 1024),
+      true,
+      sdl_releasegpubuffer(Buffer)).
+
+test(creategpubuffer_index, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   setup_call_cleanup(
+      sdl_creategpubuffer(Buffer, Device, [index], 512),
+      true,
+      sdl_releasegpubuffer(Buffer)).
+
+test(creategpubuffer_device_type_error, [
+   error(type_error(sdl_gpu_device_blob, not_a_blob))]) :-
+   sdl_creategpubuffer(_, not_a_blob, [vertex], 1024).
+
+test(creategpubuffer_usage_type_error, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit)),
+   error(type_error(sdl_gpu_buffer_usage, bogus))]) :-
+   sdl_creategpubuffer(_, Device, [bogus], 1024).
+
+test(releasegpubuffer_type_error, [
+   error(type_error(sdl_gpu_buffer_blob, not_a_blob))]) :-
+   sdl_releasegpubuffer(not_a_blob).
+
+test(releasegpubuffer_double_release, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          sdl_creategpubuffer(Buffer, Device, [vertex], 1024))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit)),
+   error(existence_error(buffer, _))]) :-
+   sdl_releasegpubuffer(Buffer),
+   sdl_releasegpubuffer(Buffer).
+
 :- end_tests(sdl).
 
 test_sdl :-
