@@ -42,6 +42,9 @@ add_library(sdl MODULE sdl.cpp)
 target_link_swipl(sdl)
 target_link_libraries(sdl PRIVATE SDL3::SDL3 SDL3_image::SDL3_image)
 
+add_library(ptr MODULE ptr.cpp)
+target_link_swipl(ptr)
+
 add_library(cairo MODULE cairo.cpp)
 target_link_swipl(cairo)
 target_link_libraries(cairo PRIVATE PkgConfig::CAIRO)
@@ -51,11 +54,11 @@ target_link_libraries(cairo PRIVATE PkgConfig::CAIRO)
 # use_foreign_library(foreign(cairo)) load them from and where swipl_add_test()
 # looks for them.  The pack build flow runs tests before install, so the modules
 # must be present here at build time.  The directory is gitignored.
-set_target_properties(sdl cairo PROPERTIES
+set_target_properties(sdl ptr cairo PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${swipl_module_dir}
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${swipl_module_dir})
 
-install(TARGETS sdl cairo
+install(TARGETS sdl ptr cairo
         DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/${swipl_module_dir})
 
 # --- tests ------------------------------------------------------------------
