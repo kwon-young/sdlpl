@@ -35,6 +35,7 @@
                 sdl_unmapgputransferbuffer/1,
                 sdl_begingpucopypass/2,
                 sdl_endgpucopypass/1,
+                sdl_uploadtogpubuffer/4,
                 sdl_gpu_buffer_usage/2,
                 sdl_gpu_transfer_buffer_usage/2,
                 sdl_gpu_load_op/2,
@@ -92,6 +93,12 @@ error:has_type(sdl_gpu_pipeline_blob, X) :- blob(X, sdl_gpu_pipeline_blob).
 error:has_type(sdl_gpu_buffer_blob, X) :- blob(X, sdl_gpu_buffer_blob).
 error:has_type(sdl_gpu_transfer_buffer_blob, X) :- blob(X, sdl_gpu_transfer_buffer_blob).
 error:has_type(sdl_gpu_copypass_blob, X) :- blob(X, sdl_gpu_copypass_blob).
+error:has_type(transfer_buffer_location, X) :-
+   compound(X),
+   compound_name_arity(X, transfer_buffer_location, 2).
+error:has_type(buffer_region, X) :-
+   compound(X),
+   compound_name_arity(X, buffer_region, 3).
 % sdl_gpu_texture accepts either a swapchain texture blob or a regular GPU
 % texture blob.  Used as a field type in color_target and depth_stencil_target
 % records.
@@ -173,6 +180,10 @@ prolog:error_message(type_error(sdl_gpu_transfer_buffer_blob, Culprit)) -->
    [ 'sdl_gpu_transfer_buffer_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_copypass_blob, Culprit)) -->
    [ 'sdl_gpu_copypass_blob, found ~q'-[Culprit] ].
+prolog:error_message(type_error(transfer_buffer_location, Culprit)) -->
+   [ 'transfer_buffer_location (transfer_buffer_location/2 compound), found ~q'-[Culprit] ].
+prolog:error_message(type_error(buffer_region, Culprit)) -->
+   [ 'buffer_region (buffer_region/3 compound), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture, Culprit)) -->
    [ 'sdl_gpu_texture (swapchain or regular texture blob), found ~q'-[Culprit] ].
 prolog:error_message(type_error(fcolor, Culprit)) -->
@@ -1448,3 +1459,24 @@ sdl_begingpucopypass(CopyPass, CmdBuf) :-
 sdl_endgpucopypass(CopyPass) :-
    must_be(sdl_gpu_copypass_blob, CopyPass),
    sdl_endgpucopypass_(CopyPass).
+
+% --- SDL_gpu: upload to buffer ----------------------------------------------
+% Uploads data from a transfer buffer to a GPU buffer.  Must be called inside
+% a copy pass.  Source is a transfer_buffer_location/2 compound:
+%   transfer_buffer_location(TransferBuffer, Offset)
+% Destination is a buffer_region/3 compound:
+%   buffer_region(Buffer, Offset, Size)
+% Cycle is a boolean: true cycles the buffer if already bound, false
+% overwrites.  No new blob is created — this is a command recorded into the
+% copy pass.
+
+sdl_uploadtogpubuffer(CopyPass, Source, Destination, Cycle) :-
+   must_be(sdl_gpu_copypass_blob, CopyPass),
+   must_be(transfer_buffer_location, Source),
+   must_be(buffer_region, Destination),
+   must_be(boolean, Cycle),
+   Source = transfer_buffer_location(TB, _),
+   must_be(sdl_gpu_transfer_buffer_blob, TB),
+   Destination = buffer_region(Buf, _, _),
+   must_be(sdl_gpu_buffer_blob, Buf),
+   sdl_uploadtogpubuffer_(CopyPass, Source, Destination, Cycle).

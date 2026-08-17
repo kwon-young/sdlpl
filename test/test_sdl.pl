@@ -836,6 +836,31 @@ test(endgpucopypass_double_end, [
    error(existence_error(copy_pass, _))]) :-
    sdl_endgpucopypass(CopyPass).
 
+% --- SDL_gpu: upload to buffer -----------------------------------------------
+
+test(uploadtogpubuffer, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          sdl_creategputransferbuffer(TB, Device, upload, 1024),
+          sdl_creategpubuffer(Buffer, Device, [vertex], 1024),
+          sdl_acquiregpucommandbuffer(CmdBuf, Device),
+          sdl_begingpucopypass(CopyPass, CmdBuf))),
+   cleanup((sdl_endgpucopypass(CopyPass),
+            sdl_submitgpucommandbuffer(CmdBuf),
+            sdl_releasegpubuffer(Buffer),
+            sdl_releasegputransferbuffer(TB),
+            sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   Source = transfer_buffer_location(TB, 0),
+   Destination = buffer_region(Buffer, 0, 1024),
+   sdl_uploadtogpubuffer(CopyPass, Source, Destination, false).
+
+test(uploadtogpubuffer_type_error, [
+   error(type_error(sdl_gpu_copypass_blob, not_a_blob))]) :-
+   sdl_uploadtogpubuffer(not_a_blob,
+      transfer_buffer_location(not_a_blob, 0),
+      buffer_region(not_a_blob, 0, 0), false).
+
 :- end_tests(sdl).
 
 test_sdl :-

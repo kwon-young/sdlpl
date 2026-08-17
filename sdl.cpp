@@ -1939,4 +1939,49 @@ PREDICATE(sdl_endgpucopypass_, 1) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// SDL_gpu upload to buffer
+//
+// Uploads data from a transfer buffer to a GPU buffer.  Must be called inside
+// a copy pass.  The source is a transfer_buffer_location(TransferBuffer,
+// Offset) compound and the destination is a buffer_region(Buffer, Offset,
+// Size) compound.  No new blob is created — this is a command recorded into
+// the copy pass.
+// ---------------------------------------------------------------------------
+
+// Helper: parse a transfer_buffer_location/2 compound.
+static SDL_GPUTransferBufferLocation get_transfer_buffer_location(PlTerm term) {
+  SDL_GPUTransferBufferLocation loc;
+  auto ref = PlBlobV<SDLGPUTransferBufferBlob>::cast_ex(
+      term[1], sdl_gpu_transfer_buffer_blob);
+  loc.transfer_buffer = ref->transfer_buffer_;
+  loc.offset = term[2].as_uint32_t();
+  return loc;
+}
+
+// Helper: parse a buffer_region/3 compound.
+static SDL_GPUBufferRegion get_buffer_region(PlTerm term) {
+  SDL_GPUBufferRegion region;
+  auto ref = PlBlobV<SDLGPUBufferBlob>::cast_ex(term[1], sdl_gpu_buffer_blob);
+  region.buffer = ref->buffer_;
+  region.offset = term[2].as_uint32_t();
+  region.size = term[3].as_uint32_t();
+  return region;
+}
+
+// sdl_uploadtogpubuffer_(+CopyPass, +Source, +Destination, +Cycle:bool)
+PREDICATE(sdl_uploadtogpubuffer_, 4) {
+  auto copypass_ref =
+      PlBlobV<SDLGPUCopyPassBlob>::cast_ex(A1, sdl_gpu_copypass_blob);
+  if (copypass_ref->pass_ == NULL) {
+    throw PlExistenceError("copy_pass", A1);
+  }
+  SDL_GPUTransferBufferLocation source =
+      get_transfer_buffer_location(A2);
+  SDL_GPUBufferRegion destination = get_buffer_region(A3);
+  bool cycle = A4.as_bool();
+  SDL_UploadToGPUBuffer(copypass_ref->pass_, &source, &destination, cycle);
+  return true;
+}
+
 
