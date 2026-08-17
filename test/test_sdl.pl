@@ -7,6 +7,11 @@
    atom_string(Abs, Str),
    assertz(sample_image(Str)).
 
+:- dynamic shader_dir/1.
+:- prolog_load_context(directory, Dir),
+   directory_file_path(Dir, '../shaders', ShaderDir),
+   assertz(shader_dir(ShaderDir)).
+
 :- begin_tests(sdl).
 
 test(init, [forall(sdl_init_flag(Flag, _))]) :-
@@ -551,6 +556,121 @@ test(endgpurenderpass_double_end, [
    error(existence_error(render_pass, _))]) :-
    nonvar(RenderPass),
    sdl_endgpurenderpass(RenderPass).
+
+% --- SDL_gpu: create / release shader ----------------------------------------
+
+test(creategpushader, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   shader_dir(Dir),
+   directory_file_path(Dir, 'tri.vert.spv', VertSpv),
+   read_file_to_string(VertSpv, Code, [type(binary)]),
+   make_gpu_shader_create_info([code(Code), format(spirv), stage(vertex)],
+                               Info),
+   setup_call_cleanup(
+      sdl_creategpushader(Shader, Device, Info),
+      true,
+      sdl_releasegpushader(Shader)).
+
+test(creategpushader_fragment, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   shader_dir(Dir),
+   directory_file_path(Dir, 'tri.frag.spv', FragSpv),
+   read_file_to_string(FragSpv, Code, [type(binary)]),
+   make_gpu_shader_create_info([code(Code), format(spirv), stage(fragment)],
+                               Info),
+   setup_call_cleanup(
+      sdl_creategpushader(Shader, Device, Info),
+      true,
+      sdl_releasegpushader(Shader)).
+
+test(creategpushader_device_type_error, [
+   error(type_error(sdl_gpu_device_blob, not_a_blob))]) :-
+   make_gpu_shader_create_info([code(""), format(spirv), stage(vertex)], Info),
+   sdl_creategpushader(_, not_a_blob, Info).
+
+test(creategpushader_stage_type_error, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit)),
+   error(type_error(sdl_gpu_shader_stage, bogus))]) :-
+   make_gpu_shader_create_info([code(""), format(spirv), stage(bogus)], Info),
+   sdl_creategpushader(_, Device, Info).
+
+test(releasegpushader_type_error, [
+   error(type_error(sdl_gpu_shader_blob, not_a_blob))]) :-
+   sdl_releasegpushader(not_a_blob).
+
+test(releasegpushader_double_release, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          shader_dir(Dir),
+          directory_file_path(Dir, 'tri.vert.spv', VertSpv),
+          read_file_to_string(VertSpv, Code, [type(binary)]),
+          make_gpu_shader_create_info([code(Code), format(spirv), stage(vertex)], Info),
+          sdl_creategpushader(Shader, Device, Info))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit)),
+   error(existence_error(shader, _))]) :-
+   sdl_releasegpushader(Shader),
+   sdl_releasegpushader(Shader).
+
+% --- SDL_gpu: create / release graphics pipeline -----------------------------
+
+test(creategpugraphicspipeline, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          shader_dir(Dir),
+          directory_file_path(Dir, 'tri.vert.spv', VertSpv),
+          directory_file_path(Dir, 'tri.frag.spv', FragSpv),
+          read_file_to_string(VertSpv, VertCode, [type(binary)]),
+          read_file_to_string(FragSpv, FragCode, [type(binary)]),
+          make_gpu_shader_create_info([code(VertCode), format(spirv), stage(vertex)], VertInfo),
+          make_gpu_shader_create_info([code(FragCode), format(spirv), stage(fragment)], FragInfo),
+          sdl_creategpushader(VertShader, Device, VertInfo),
+          sdl_creategpushader(FragShader, Device, FragInfo))),
+   cleanup((sdl_releasegpushader(VertShader),
+            sdl_releasegpushader(FragShader),
+            sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   make_vertex_buffer_description([slot(0), pitch(24)], VBD),
+   make_vertex_attribute([location(0), buffer_slot(0), format(float2), offset(0)], PosAttr),
+   make_vertex_attribute([location(1), buffer_slot(0), format(float4), offset(8)], ColorAttr),
+   make_vertex_input_state([vertex_buffer_descriptions([VBD]), vertex_attributes([PosAttr, ColorAttr])], VIS),
+   default_rasterizer_state(RS),
+   default_multisample_state(MS),
+   default_stencil_op_state(SOS),
+   make_depth_stencil_state([back_stencil_state(SOS), front_stencil_state(SOS)], DSS),
+   make_color_target_blend_state([], BS),
+   make_color_target_description([format(b8g8r8a8_unorm), blend_state(BS)], CTD),
+   make_target_info([color_target_descriptions([CTD])], TI),
+   make_gpu_graphics_pipeline_create_info([
+      vertex_shader(VertShader),
+      fragment_shader(FragShader),
+      vertex_input_state(VIS),
+      rasterizer_state(RS),
+      multisample_state(MS),
+      depth_stencil_state(DSS),
+      target_info(TI)
+   ], Info),
+   setup_call_cleanup(
+      sdl_creategpugraphicspipeline(Pipeline, Device, Info),
+      true,
+      sdl_releasegpugraphicspipeline(Pipeline)).
+
+test(releasegpugraphicspipeline_type_error, [
+   error(type_error(sdl_gpu_pipeline_blob, not_a_blob))]) :-
+   sdl_releasegpugraphicspipeline(not_a_blob).
+
+test(creategpugraphicspipeline_device_type_error, [
+   error(type_error(sdl_gpu_device_blob, not_a_blob))]) :-
+   sdl_creategpugraphicspipeline(_, not_a_blob, not_a_record).
 
 :- end_tests(sdl).
 

@@ -1257,4 +1257,378 @@ PREDICATE(sdl_endgpurenderpass_, 1) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// SDL_gpu shader
+//
+// Created via SDL_CreateGPUShader with a shader create info struct, and
+// released via SDL_ReleaseGPUShader.  The blob stores both the shader and
+// device pointers (release needs both), and holds a parent ref to the device
+// for GC safety.  destroy() calls SDL_ReleaseGPUShader, so the shader is
+// automatically freed if the blob is garbage-collected.
+//
+// Shader bytecode (e.g. SPIR-V for Vulkan) is passed as a Prolog string.
+// The C++ layer uses PL_get_nchars to extract the raw bytes and length,
+// since SPIR-V is binary data that may contain null bytes.
+// ---------------------------------------------------------------------------
+
+struct SDLGPUShaderBlob;
+
+static PL_blob_t sdl_gpu_shader_blob =
+    PL_BLOB_DEFINITION(SDLGPUShaderBlob, "sdl_gpu_shader_blob");
+
+struct SDLGPUShaderBlob : public PlBlob {
+  SDL_GPUShader *shader_;
+  SDL_GPUDevice *device_;
+  PlAtom parent_;
+
+  explicit SDLGPUShaderBlob()
+      : PlBlob(&sdl_gpu_shader_blob), shader_(NULL), device_(NULL),
+        parent_(PlAtom::null) {}
+
+  explicit SDLGPUShaderBlob(SDL_GPUShader *shader, SDL_GPUDevice *device,
+                            PlAtom parent)
+      : PlBlob(&sdl_gpu_shader_blob), shader_(shader), device_(device),
+        parent_(parent) {
+    parent_.register_ref();
+  }
+
+  PL_BLOB_SIZE
+
+  void portray(PlStream &strm) const {
+    strm.printf("sdl_gpu_shader_blob<%p>(%p)", this, shader_);
+  }
+
+  void destroy() noexcept {
+    if (shader_ != NULL) {
+      SDL_ReleaseGPUShader(device_, shader_);
+      shader_ = NULL;
+    }
+    device_ = NULL;
+    if (parent_.not_null()) {
+      parent_.unregister_ref();
+      parent_.set_null();
+    }
+  }
+
+  virtual ~SDLGPUShaderBlob() noexcept { destroy(); }
+};
+
+PREDICATE(sdl_gpu_shader_blob_portray, 2) {
+  auto ref = PlBlobV<SDLGPUShaderBlob>::cast_ex(A2, sdl_gpu_shader_blob);
+  PlStream strm(A1, 0);
+  ref->portray(strm);
+  return true;
+}
+
+// sdl_creategpushader_(-Shader, +Device, +CreateInfo)
+// CreateInfo is a gpu_shader_create_info/8 compound with int values for
+// format and stage (translated by the Prolog wrapper).  The code field is
+// a Prolog string containing raw shader bytecode (e.g. SPIR-V).
+PREDICATE(sdl_creategpushader_, 3) {
+  auto device_ref = PlBlobV<SDLGPUDeviceBlob>::cast_ex(A2, sdl_gpu_device_blob);
+
+  SDL_GPUShaderCreateInfo info;
+  // code: extract raw bytes + length from the Prolog string.  SPIR-V is
+  // binary and may contain null bytes, so we use PL_get_string_chars (C API)
+  // which gives both pointer and length without stopping at null bytes.
+  size_t code_size;
+  char *code_data;
+  if (!PL_get_string(A3[1].unwrap(), &code_data, &code_size)) {
+    throw PlTypeError("string", A3[1]);
+  }
+  info.code_size = code_size;
+  info.code = (const Uint8 *)code_data;
+  // entrypoint: normal text string
+  info.entrypoint = A3[2].as_string().c_str();
+  // format, stage (already translated to ints by Prolog wrapper)
+  info.format = (SDL_GPUShaderFormat)A3[3].as_uint32_t();
+  info.stage = (SDL_GPUShaderStage)A3[4].as_int();
+  info.num_samplers = A3[5].as_uint32_t();
+  info.num_storage_textures = A3[6].as_uint32_t();
+  info.num_storage_buffers = A3[7].as_uint32_t();
+  info.num_uniform_buffers = A3[8].as_uint32_t();
+  info.props = 0;
+
+  SDL_GPUShader *shader = SDL_CreateGPUShader(device_ref->device_, &info);
+  if (shader == NULL) {
+    throw PlUnknownError(SDL_GetError());
+  }
+  auto ref = std::unique_ptr<PlBlob>(
+      new SDLGPUShaderBlob(shader, device_ref->device_,
+                           device_ref->symbol_));
+  return A1.unify_blob(&ref);
+}
+
+// sdl_releasegpushader_(+Shader)
+// Releases the GPU shader.  After release the shader pointer is invalid;
+// the blob's pointer is set to NULL so destroy() is a no-op.  Calling
+// release on an already-released shader throws existence_error.
+PREDICATE(sdl_releasegpushader_, 1) {
+  auto ref = PlBlobV<SDLGPUShaderBlob>::cast_ex(A1, sdl_gpu_shader_blob);
+  if (ref->shader_ == NULL) {
+    throw PlExistenceError("shader", A1);
+  }
+  SDL_ReleaseGPUShader(ref->device_, ref->shader_);
+  ref->shader_ = NULL;
+  ref->device_ = NULL;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// SDL_gpu graphics pipeline
+//
+// Created via SDL_CreateGPUGraphicsPipeline with a deeply nested create info
+// struct, and released via SDL_ReleaseGPUGraphicsPipeline.  The blob stores
+// both the pipeline and device pointers (release needs both), and holds a
+// parent ref to the device for GC safety.  destroy() calls
+// SDL_ReleaseGPUGraphicsPipeline, so the pipeline is automatically freed if
+// the blob is garbage-collected.
+// ---------------------------------------------------------------------------
+
+struct SDLGPUGraphicsPipelineBlob;
+
+static PL_blob_t sdl_gpu_pipeline_blob =
+    PL_BLOB_DEFINITION(SDLGPUGraphicsPipelineBlob, "sdl_gpu_pipeline_blob");
+
+struct SDLGPUGraphicsPipelineBlob : public PlBlob {
+  SDL_GPUGraphicsPipeline *pipeline_;
+  SDL_GPUDevice *device_;
+  PlAtom parent_;
+
+  explicit SDLGPUGraphicsPipelineBlob()
+      : PlBlob(&sdl_gpu_pipeline_blob), pipeline_(NULL), device_(NULL),
+        parent_(PlAtom::null) {}
+
+  explicit SDLGPUGraphicsPipelineBlob(SDL_GPUGraphicsPipeline *pipeline,
+                                      SDL_GPUDevice *device, PlAtom parent)
+      : PlBlob(&sdl_gpu_pipeline_blob), pipeline_(pipeline), device_(device),
+        parent_(parent) {
+    parent_.register_ref();
+  }
+
+  PL_BLOB_SIZE
+
+  void portray(PlStream &strm) const {
+    strm.printf("sdl_gpu_pipeline_blob<%p>(%p)", this, pipeline_);
+  }
+
+  void destroy() noexcept {
+    if (pipeline_ != NULL) {
+      SDL_ReleaseGPUGraphicsPipeline(device_, pipeline_);
+      pipeline_ = NULL;
+    }
+    device_ = NULL;
+    if (parent_.not_null()) {
+      parent_.unregister_ref();
+      parent_.set_null();
+    }
+  }
+
+  virtual ~SDLGPUGraphicsPipelineBlob() noexcept { destroy(); }
+};
+
+PREDICATE(sdl_gpu_pipeline_blob_portray, 2) {
+  auto ref =
+      PlBlobV<SDLGPUGraphicsPipelineBlob>::cast_ex(A2, sdl_gpu_pipeline_blob);
+  PlStream strm(A1, 0);
+  ref->portray(strm);
+  return true;
+}
+
+// Helper: get a shader pointer from a shader blob term.
+static SDL_GPUShader *get_gpu_shader(PlTerm term) {
+  auto ref = PlBlobV<SDLGPUShaderBlob>::cast_ex(term, sdl_gpu_shader_blob);
+  return ref->shader_;
+}
+
+// Helper: parse a vertex_buffer_description/4 compound (int values).
+static SDL_GPUVertexBufferDescription get_vertex_buffer_desc(PlTerm term) {
+  SDL_GPUVertexBufferDescription desc;
+  desc.slot = term[1].as_uint32_t();
+  desc.pitch = term[2].as_uint32_t();
+  desc.input_rate = (SDL_GPUVertexInputRate)term[3].as_int();
+  desc.instance_step_rate = term[4].as_uint32_t();
+  return desc;
+}
+
+// Helper: parse a vertex_attribute/4 compound (int values).
+static SDL_GPUVertexAttribute get_vertex_attribute(PlTerm term) {
+  SDL_GPUVertexAttribute attr;
+  attr.location = term[1].as_uint32_t();
+  attr.buffer_slot = term[2].as_uint32_t();
+  attr.format = (SDL_GPUVertexElementFormat)term[3].as_uint32_t();
+  attr.offset = term[4].as_uint32_t();
+  return attr;
+}
+
+// Helper: parse a stencil_op_state/4 compound (int values).
+static SDL_GPUStencilOpState get_stencil_op_state(PlTerm term) {
+  SDL_GPUStencilOpState state;
+  state.fail_op = (SDL_GPUStencilOp)term[1].as_int();
+  state.pass_op = (SDL_GPUStencilOp)term[2].as_int();
+  state.depth_fail_op = (SDL_GPUStencilOp)term[3].as_int();
+  state.compare_op = (SDL_GPUCompareOp)term[4].as_int();
+  return state;
+}
+
+// Helper: parse a color_target_blend_state/9 compound (int values).
+static SDL_GPUColorTargetBlendState get_blend_state(PlTerm term) {
+  SDL_GPUColorTargetBlendState state;
+  state.src_color_blendfactor = (SDL_GPUBlendFactor)term[1].as_int();
+  state.dst_color_blendfactor = (SDL_GPUBlendFactor)term[2].as_int();
+  state.color_blend_op = (SDL_GPUBlendOp)term[3].as_int();
+  state.src_alpha_blendfactor = (SDL_GPUBlendFactor)term[4].as_int();
+  state.dst_alpha_blendfactor = (SDL_GPUBlendFactor)term[5].as_int();
+  state.alpha_blend_op = (SDL_GPUBlendOp)term[6].as_int();
+  state.color_write_mask = (SDL_GPUColorComponentFlags)term[7].as_uint();
+  state.enable_blend = term[8].as_bool();
+  state.enable_color_write_mask = term[9].as_bool();
+  state.padding1 = 0;
+  state.padding2 = 0;
+  return state;
+}
+
+// Helper: parse a color_target_description/2 compound (int values).
+// color_target_description(Format:int, BlendState)
+static SDL_GPUColorTargetDescription get_color_target_desc(PlTerm term) {
+  SDL_GPUColorTargetDescription desc;
+  desc.format = (SDL_GPUTextureFormat)term[1].as_uint32_t();
+  desc.blend_state = get_blend_state(term[2]);
+  return desc;
+}
+
+// Helper: parse a list of compounds into a vector via PlTerm_tail.
+template <typename T, T (*parser)(PlTerm)>
+static std::vector<T> parse_list(PlTerm list_term) {
+  std::vector<T> items;
+  PlTerm_tail tail(list_term);
+  PlTerm_var element;
+  while (tail.next(element)) {
+    items.push_back(parser(element));
+  }
+  return items;
+}
+
+// sdl_creategpugraphicspipeline_(-Pipeline, +Device, +CreateInfo)
+// CreateInfo is a gpu_graphics_pipeline_create_info/8 compound with int
+// values (translated by the Prolog wrapper).  The nested sub-structs are:
+//   vertex_input_state(VertexBuffers, VertexAttributes)
+//   rasterizer_state(FillMode, CullMode, FrontFace, DepthBiasConstantFactor,
+//                    DepthBiasClamp, DepthBiasSlopeFactor,
+//                    EnableDepthBias, EnableDepthClip)
+//   multisample_state(SampleCount, SampleMask, EnableMask,
+//                     EnableAlphaToCoverage)
+//   depth_stencil_state(CompareOp, BackStencilState, FrontStencilState,
+//                       CompareMask, WriteMask, EnableDepthTest,
+//                       EnableDepthWrite, EnableStencilTest)
+//   target_info(ColorTargetDescriptions, DepthStencilFormat,
+//               HasDepthStencilTarget)
+// where stencil_op_state(FailOp, PassOp, DepthFailOp, CompareOp) and
+// color_target_blend_state(SrcColorBF, DstColorBF, ColorBlendOp,
+//   SrcAlphaBF, DstAlphaBF, AlphaBlendOp, ColorWriteMask,
+//   EnableBlend, EnableColorWriteMask).
+PREDICATE(sdl_creategpugraphicspipeline_, 3) {
+  auto device_ref = PlBlobV<SDLGPUDeviceBlob>::cast_ex(A2, sdl_gpu_device_blob);
+
+  SDL_GPUGraphicsPipelineCreateInfo info;
+  memset(&info, 0, sizeof(info));
+  info.vertex_shader = get_gpu_shader(A3[1]);
+  info.fragment_shader = get_gpu_shader(A3[2]);
+
+  // vertex_input_state(VertexBuffers, VertexAttributes)
+  PlTerm vi = A3[3];
+  auto vbs = parse_list<SDL_GPUVertexBufferDescription, get_vertex_buffer_desc>(
+      vi[1]);
+  auto vas = parse_list<SDL_GPUVertexAttribute, get_vertex_attribute>(vi[2]);
+  info.vertex_input_state.vertex_buffer_descriptions = vbs.data();
+  info.vertex_input_state.num_vertex_buffers = (Uint32)vbs.size();
+  info.vertex_input_state.vertex_attributes = vas.data();
+  info.vertex_input_state.num_vertex_attributes = (Uint32)vas.size();
+
+  info.primitive_type = (SDL_GPUPrimitiveType)A3[4].as_int();
+
+  // rasterizer_state(FillMode, CullMode, FrontFace, DepthBiasConstantFactor,
+  //                  DepthBiasClamp, DepthBiasSlopeFactor,
+  //                  EnableDepthBias, EnableDepthClip)
+  PlTerm rs = A3[5];
+  info.rasterizer_state.fill_mode = (SDL_GPUFillMode)rs[1].as_int();
+  info.rasterizer_state.cull_mode = (SDL_GPUCullMode)rs[2].as_int();
+  info.rasterizer_state.front_face = (SDL_GPUFrontFace)rs[3].as_int();
+  info.rasterizer_state.depth_bias_constant_factor = rs[4].as_float();
+  info.rasterizer_state.depth_bias_clamp = rs[5].as_float();
+  info.rasterizer_state.depth_bias_slope_factor = rs[6].as_float();
+  info.rasterizer_state.enable_depth_bias = rs[7].as_bool();
+  info.rasterizer_state.enable_depth_clip = rs[8].as_bool();
+  info.rasterizer_state.padding1 = 0;
+  info.rasterizer_state.padding2 = 0;
+
+  // multisample_state(SampleCount, SampleMask, EnableMask,
+  //                   EnableAlphaToCoverage)
+  PlTerm ms = A3[6];
+  info.multisample_state.sample_count = (SDL_GPUSampleCount)ms[1].as_int();
+  info.multisample_state.sample_mask = ms[2].as_uint32_t();
+  info.multisample_state.enable_mask = ms[3].as_bool();
+  info.multisample_state.enable_alpha_to_coverage = ms[4].as_bool();
+  info.multisample_state.padding2 = 0;
+  info.multisample_state.padding3 = 0;
+
+  // depth_stencil_state(CompareOp, BackStencilState, FrontStencilState,
+  //                     CompareMask, WriteMask, EnableDepthTest,
+  //                     EnableDepthWrite, EnableStencilTest)
+  PlTerm ds = A3[7];
+  info.depth_stencil_state.compare_op = (SDL_GPUCompareOp)ds[1].as_int();
+  info.depth_stencil_state.back_stencil_state = get_stencil_op_state(ds[2]);
+  info.depth_stencil_state.front_stencil_state = get_stencil_op_state(ds[3]);
+  info.depth_stencil_state.compare_mask = ds[4].as_uint();
+  info.depth_stencil_state.write_mask = ds[5].as_uint();
+  info.depth_stencil_state.enable_depth_test = ds[6].as_bool();
+  info.depth_stencil_state.enable_depth_write = ds[7].as_bool();
+  info.depth_stencil_state.enable_stencil_test = ds[8].as_bool();
+  info.depth_stencil_state.padding1 = 0;
+  info.depth_stencil_state.padding2 = 0;
+  info.depth_stencil_state.padding3 = 0;
+
+  // target_info(ColorTargetDescriptions, DepthStencilFormat,
+  //             HasDepthStencilTarget)
+  PlTerm ti = A3[8];
+  auto ctds =
+      parse_list<SDL_GPUColorTargetDescription, get_color_target_desc>(ti[1]);
+  info.target_info.color_target_descriptions = ctds.data();
+  info.target_info.num_color_targets = (Uint32)ctds.size();
+  info.target_info.depth_stencil_format =
+      (SDL_GPUTextureFormat)ti[2].as_uint32_t();
+  info.target_info.has_depth_stencil_target = ti[3].as_bool();
+  info.target_info.padding1 = 0;
+  info.target_info.padding2 = 0;
+  info.target_info.padding3 = 0;
+
+  info.props = 0;
+
+  SDL_GPUGraphicsPipeline *pipeline =
+      SDL_CreateGPUGraphicsPipeline(device_ref->device_, &info);
+  if (pipeline == NULL) {
+    throw PlUnknownError(SDL_GetError());
+  }
+  auto ref = std::unique_ptr<PlBlob>(
+      new SDLGPUGraphicsPipelineBlob(pipeline, device_ref->device_,
+                                     device_ref->symbol_));
+  return A1.unify_blob(&ref);
+}
+
+// sdl_releasegpugraphicspipeline_(+Pipeline)
+// Releases the graphics pipeline.  After release the pointer is invalid;
+// the blob's pointer is set to NULL so destroy() is a no-op.  Calling
+// release on an already-released pipeline throws existence_error.
+PREDICATE(sdl_releasegpugraphicspipeline_, 1) {
+  auto ref =
+      PlBlobV<SDLGPUGraphicsPipelineBlob>::cast_ex(A1, sdl_gpu_pipeline_blob);
+  if (ref->pipeline_ == NULL) {
+    throw PlExistenceError("pipeline", A1);
+  }
+  SDL_ReleaseGPUGraphicsPipeline(ref->device_, ref->pipeline_);
+  ref->pipeline_ = NULL;
+  ref->device_ = NULL;
+  return true;
+}
+
 

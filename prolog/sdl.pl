@@ -23,6 +23,10 @@
                 sdl_endgpurenderpass/1,
                 sdl_creategputexture/3,
                 sdl_releasegputexture/1,
+                sdl_creategpushader/3,
+                sdl_releasegpushader/1,
+                sdl_creategpugraphicspipeline/3,
+                sdl_releasegpugraphicspipeline/1,
                 sdl_gpu_load_op/2,
                 sdl_gpu_store_op/2,
                 sdl_gpu_texture_type/2,
@@ -30,10 +34,34 @@
                 sdl_gpu_texture_usage/2,
                 sdl_gpu_sample_count/2,
                 sdl_gpu_shader_format/2,
+                sdl_gpu_shader_stage/2,
+                sdl_gpu_primitive_type/2,
+                sdl_gpu_fill_mode/2,
+                sdl_gpu_cull_mode/2,
+                sdl_gpu_front_face/2,
+                sdl_gpu_compare_op/2,
+                sdl_gpu_stencil_op/2,
+                sdl_gpu_blend_op/2,
+                sdl_gpu_blend_factor/2,
+                sdl_gpu_vertex_input_rate/2,
+                sdl_gpu_vertex_element_format/2,
+                sdl_gpu_color_component/2,
                 sdl_getnumgpudrivers/1, sdl_getgpudriver/2,
                 make_color_target/2, default_color_target/1, is_color_target/1,
                 make_depth_stencil_target/2, default_depth_stencil_target/1, is_depth_stencil_target/1,
-                make_gpu_texture_create_info/2, default_gpu_texture_create_info/1, is_gpu_texture_create_info/1
+                make_gpu_texture_create_info/2, default_gpu_texture_create_info/1, is_gpu_texture_create_info/1,
+                make_gpu_shader_create_info/2, default_gpu_shader_create_info/1, is_gpu_shader_create_info/1,
+                make_vertex_buffer_description/2, default_vertex_buffer_description/1, is_vertex_buffer_description/1,
+                make_vertex_attribute/2, default_vertex_attribute/1, is_vertex_attribute/1,
+                make_stencil_op_state/2, default_stencil_op_state/1, is_stencil_op_state/1,
+                make_color_target_blend_state/2, default_color_target_blend_state/1, is_color_target_blend_state/1,
+                make_color_target_description/2, default_color_target_description/1, is_color_target_description/1,
+                make_vertex_input_state/2, default_vertex_input_state/1, is_vertex_input_state/1,
+                make_rasterizer_state/2, default_rasterizer_state/1, is_rasterizer_state/1,
+                make_multisample_state/2, default_multisample_state/1, is_multisample_state/1,
+                make_depth_stencil_state/2, default_depth_stencil_state/1, is_depth_stencil_state/1,
+                make_target_info/2, default_target_info/1, is_target_info/1,
+                make_gpu_graphics_pipeline_create_info/2, default_gpu_graphics_pipeline_create_info/1, is_gpu_graphics_pipeline_create_info/1
                 ]).
 :- use_foreign_library(foreign(sdl)).
 :- use_module(library(ptr)).
@@ -49,6 +77,8 @@ error:has_type(sdl_gpu_cmdbuf_blob, X) :- blob(X, sdl_gpu_cmdbuf_blob).
 error:has_type(sdl_gpu_swapchain_texture_blob, X) :- blob(X, sdl_gpu_swapchain_texture_blob).
 error:has_type(sdl_gpu_renderpass_blob, X) :- blob(X, sdl_gpu_renderpass_blob).
 error:has_type(sdl_gpu_texture_blob, X) :- blob(X, sdl_gpu_texture_blob).
+error:has_type(sdl_gpu_shader_blob, X) :- blob(X, sdl_gpu_shader_blob).
+error:has_type(sdl_gpu_pipeline_blob, X) :- blob(X, sdl_gpu_pipeline_blob).
 % sdl_gpu_texture accepts either a swapchain texture blob or a regular GPU
 % texture blob.  Used as a field type in color_target and depth_stencil_target
 % records.
@@ -71,6 +101,18 @@ error:has_type(sdl_gpu_texture_type, X) :- sdl_gpu_texture_type(X, _).
 error:has_type(sdl_gpu_texture_format, X) :- sdl_gpu_texture_format(X, _).
 error:has_type(sdl_gpu_texture_usage, X) :- sdl_gpu_texture_usage(X, _).
 error:has_type(sdl_gpu_sample_count, X) :- sdl_gpu_sample_count(X, _).
+error:has_type(sdl_gpu_shader_stage, X) :- sdl_gpu_shader_stage(X, _).
+error:has_type(sdl_gpu_primitive_type, X) :- sdl_gpu_primitive_type(X, _).
+error:has_type(sdl_gpu_fill_mode, X) :- sdl_gpu_fill_mode(X, _).
+error:has_type(sdl_gpu_cull_mode, X) :- sdl_gpu_cull_mode(X, _).
+error:has_type(sdl_gpu_front_face, X) :- sdl_gpu_front_face(X, _).
+error:has_type(sdl_gpu_compare_op, X) :- sdl_gpu_compare_op(X, _).
+error:has_type(sdl_gpu_stencil_op, X) :- sdl_gpu_stencil_op(X, _).
+error:has_type(sdl_gpu_blend_op, X) :- sdl_gpu_blend_op(X, _).
+error:has_type(sdl_gpu_blend_factor, X) :- sdl_gpu_blend_factor(X, _).
+error:has_type(sdl_gpu_vertex_input_rate, X) :- sdl_gpu_vertex_input_rate(X, _).
+error:has_type(sdl_gpu_vertex_element_format, X) :- sdl_gpu_vertex_element_format(X, _).
+error:has_type(sdl_gpu_color_component, X) :- sdl_gpu_color_component(X, _).
 error:has_type(sdl_init_flag,   X) :- sdl_init_flag(X, _).
 error:has_type(sdl_window_flag, X) :- sdl_window_flag(X, _).
 error:has_type(sdl_windowpos,   X) :- ( atom(X) -> sdl_windowpos(X, _) ; integer(X) ).
@@ -106,6 +148,10 @@ prolog:error_message(type_error(sdl_gpu_renderpass_blob, Culprit)) -->
    [ 'sdl_gpu_renderpass_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture_blob, Culprit)) -->
    [ 'sdl_gpu_texture_blob, found ~q'-[Culprit] ].
+prolog:error_message(type_error(sdl_gpu_shader_blob, Culprit)) -->
+   [ 'sdl_gpu_shader_blob, found ~q'-[Culprit] ].
+prolog:error_message(type_error(sdl_gpu_pipeline_blob, Culprit)) -->
+   [ 'sdl_gpu_pipeline_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture, Culprit)) -->
    [ 'sdl_gpu_texture (swapchain or regular texture blob), found ~q'-[Culprit] ].
 prolog:error_message(type_error(fcolor, Culprit)) -->
@@ -127,6 +173,42 @@ prolog:error_message(type_error(sdl_gpu_texture_usage, Culprit)) -->
 prolog:error_message(type_error(sdl_gpu_sample_count, Culprit)) -->
    { findall(F, sdl_gpu_sample_count(F, _), Fs) },
    [ 'sdl_gpu_sample_count (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_shader_stage, Culprit)) -->
+   { findall(F, sdl_gpu_shader_stage(F, _), Fs) },
+   [ 'sdl_gpu_shader_stage (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_primitive_type, Culprit)) -->
+   { findall(F, sdl_gpu_primitive_type(F, _), Fs) },
+   [ 'sdl_gpu_primitive_type (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_fill_mode, Culprit)) -->
+   { findall(F, sdl_gpu_fill_mode(F, _), Fs) },
+   [ 'sdl_gpu_fill_mode (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_cull_mode, Culprit)) -->
+   { findall(F, sdl_gpu_cull_mode(F, _), Fs) },
+   [ 'sdl_gpu_cull_mode (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_front_face, Culprit)) -->
+   { findall(F, sdl_gpu_front_face(F, _), Fs) },
+   [ 'sdl_gpu_front_face (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_compare_op, Culprit)) -->
+   { findall(F, sdl_gpu_compare_op(F, _), Fs) },
+   [ 'sdl_gpu_compare_op (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_stencil_op, Culprit)) -->
+   { findall(F, sdl_gpu_stencil_op(F, _), Fs) },
+   [ 'sdl_gpu_stencil_op (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_blend_op, Culprit)) -->
+   { findall(F, sdl_gpu_blend_op(F, _), Fs) },
+   [ 'sdl_gpu_blend_op (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_blend_factor, Culprit)) -->
+   { findall(F, sdl_gpu_blend_factor(F, _), Fs) },
+   [ 'sdl_gpu_blend_factor (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_vertex_input_rate, Culprit)) -->
+   { findall(F, sdl_gpu_vertex_input_rate(F, _), Fs) },
+   [ 'sdl_gpu_vertex_input_rate (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_vertex_element_format, Culprit)) -->
+   { findall(F, sdl_gpu_vertex_element_format(F, _), Fs) },
+   [ 'sdl_gpu_vertex_element_format (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_color_component, Culprit)) -->
+   { findall(F, sdl_gpu_color_component(F, _), Fs) },
+   [ 'sdl_gpu_color_component (one of ~q), found ~q'-[Fs, Culprit] ].
 prolog:error_message(type_error(sdl_gpu_color_target, Culprit)) -->
    [ 'sdl_gpu_color_target (record color_target/11), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_depth_stencil_target, Culprit)) -->
@@ -167,6 +249,12 @@ user:portray(RenderPass) :-
 user:portray(Texture) :-
    blob(Texture, sdl_gpu_texture_blob), !,
    sdl_gpu_texture_blob_portray(current_output, Texture).
+user:portray(Shader) :-
+   blob(Shader, sdl_gpu_shader_blob), !,
+   sdl_gpu_shader_blob_portray(current_output, Shader).
+user:portray(Pipeline) :-
+   blob(Pipeline, sdl_gpu_pipeline_blob), !,
+   sdl_gpu_pipeline_blob_portray(current_output, Pipeline).
 
 sdl_init_flag(audio, 0x00000010).
 sdl_init_flag(video, 0x00000020).
@@ -699,6 +787,107 @@ sdl_gpu_texture_format(astc_10x10_float, 102).
 sdl_gpu_texture_format(astc_12x10_float, 103).
 sdl_gpu_texture_format(astc_12x12_float, 104).
 
+sdl_gpu_shader_stage(vertex, 0).
+sdl_gpu_shader_stage(fragment, 1).
+
+sdl_gpu_primitive_type(trianglelist, 0).
+sdl_gpu_primitive_type(trianglestrip, 1).
+sdl_gpu_primitive_type(linelist, 2).
+sdl_gpu_primitive_type(linestrip, 3).
+sdl_gpu_primitive_type(pointlist, 4).
+
+sdl_gpu_fill_mode(fill, 0).
+sdl_gpu_fill_mode(line, 1).
+
+sdl_gpu_cull_mode(none, 0).
+sdl_gpu_cull_mode(front, 1).
+sdl_gpu_cull_mode(back, 2).
+
+sdl_gpu_front_face(counter_clockwise, 0).
+sdl_gpu_front_face(clockwise, 1).
+
+sdl_gpu_compare_op(invalid, 0).
+sdl_gpu_compare_op(never, 1).
+sdl_gpu_compare_op(less, 2).
+sdl_gpu_compare_op(equal, 3).
+sdl_gpu_compare_op(less_or_equal, 4).
+sdl_gpu_compare_op(greater, 5).
+sdl_gpu_compare_op(not_equal, 6).
+sdl_gpu_compare_op(greater_or_equal, 7).
+sdl_gpu_compare_op(always, 8).
+
+sdl_gpu_stencil_op(invalid, 0).
+sdl_gpu_stencil_op(keep, 1).
+sdl_gpu_stencil_op(zero, 2).
+sdl_gpu_stencil_op(replace, 3).
+sdl_gpu_stencil_op(increment_and_clamp, 4).
+sdl_gpu_stencil_op(decrement_and_clamp, 5).
+sdl_gpu_stencil_op(invert, 6).
+sdl_gpu_stencil_op(increment_and_wrap, 7).
+sdl_gpu_stencil_op(decrement_and_wrap, 8).
+
+sdl_gpu_blend_op(invalid, 0).
+sdl_gpu_blend_op(add, 1).
+sdl_gpu_blend_op(subtract, 2).
+sdl_gpu_blend_op(reverse_subtract, 3).
+sdl_gpu_blend_op(min, 4).
+sdl_gpu_blend_op(max, 5).
+
+sdl_gpu_blend_factor(invalid, 0).
+sdl_gpu_blend_factor(zero, 1).
+sdl_gpu_blend_factor(one, 2).
+sdl_gpu_blend_factor(src_color, 3).
+sdl_gpu_blend_factor(one_minus_src_color, 4).
+sdl_gpu_blend_factor(dst_color, 5).
+sdl_gpu_blend_factor(one_minus_dst_color, 6).
+sdl_gpu_blend_factor(src_alpha, 7).
+sdl_gpu_blend_factor(one_minus_src_alpha, 8).
+sdl_gpu_blend_factor(dst_alpha, 9).
+sdl_gpu_blend_factor(one_minus_dst_alpha, 10).
+sdl_gpu_blend_factor(constant_color, 11).
+sdl_gpu_blend_factor(one_minus_constant_color, 12).
+sdl_gpu_blend_factor(src_alpha_saturate, 13).
+
+sdl_gpu_vertex_input_rate(vertex, 0).
+sdl_gpu_vertex_input_rate(instance, 1).
+
+sdl_gpu_vertex_element_format(invalid, 0).
+sdl_gpu_vertex_element_format(int, 1).
+sdl_gpu_vertex_element_format(int2, 2).
+sdl_gpu_vertex_element_format(int3, 3).
+sdl_gpu_vertex_element_format(int4, 4).
+sdl_gpu_vertex_element_format(uint, 5).
+sdl_gpu_vertex_element_format(uint2, 6).
+sdl_gpu_vertex_element_format(uint3, 7).
+sdl_gpu_vertex_element_format(uint4, 8).
+sdl_gpu_vertex_element_format(float, 9).
+sdl_gpu_vertex_element_format(float2, 10).
+sdl_gpu_vertex_element_format(float3, 11).
+sdl_gpu_vertex_element_format(float4, 12).
+sdl_gpu_vertex_element_format(byte2, 13).
+sdl_gpu_vertex_element_format(byte4, 14).
+sdl_gpu_vertex_element_format(ubyte2, 15).
+sdl_gpu_vertex_element_format(ubyte4, 16).
+sdl_gpu_vertex_element_format(byte2_norm, 17).
+sdl_gpu_vertex_element_format(byte4_norm, 18).
+sdl_gpu_vertex_element_format(ubyte2_norm, 19).
+sdl_gpu_vertex_element_format(ubyte4_norm, 20).
+sdl_gpu_vertex_element_format(short2, 21).
+sdl_gpu_vertex_element_format(short4, 22).
+sdl_gpu_vertex_element_format(ushort2, 23).
+sdl_gpu_vertex_element_format(ushort4, 24).
+sdl_gpu_vertex_element_format(short2_norm, 25).
+sdl_gpu_vertex_element_format(short4_norm, 26).
+sdl_gpu_vertex_element_format(ushort2_norm, 27).
+sdl_gpu_vertex_element_format(ushort4_norm, 28).
+sdl_gpu_vertex_element_format(half2, 29).
+sdl_gpu_vertex_element_format(half4, 30).
+
+sdl_gpu_color_component(r, 0x01).
+sdl_gpu_color_component(g, 0x02).
+sdl_gpu_color_component(b, 0x04).
+sdl_gpu_color_component(a, 0x08).
+
 % --- SDL_gpu: struct records ------------------------------------------------
 % The following records map 1-to-1 to SDL_gpu structs.  Field order matches
 % the C struct (the foreign layer reads by position).  Field types are
@@ -747,10 +936,140 @@ sdl_gpu_texture_format(astc_12x12_float, 104).
    sample_count:sdl_gpu_sample_count=1
 ).
 
+% SDL_GPUShaderCreateInfo (props is always 0, omitted).  Code is a Prolog
+% string containing raw shader bytecode (e.g. SPIR-V for Vulkan).  Read it
+% from a .spv file with read_file_to_string(File, Code, [type(binary)]).
+:- record gpu_shader_create_info(
+   code:string,                                                   % required
+   entrypoint:string="main",
+   format:sdl_gpu_shader_format,                                  % required
+   stage:sdl_gpu_shader_stage,                                    % required
+   num_samplers:nonneg=0,
+   num_storage_textures:nonneg=0,
+   num_storage_buffers:nonneg=0,
+   num_uniform_buffers:nonneg=0
+).
+
+% --- Graphics pipeline nested structs ---
+
+% SDL_GPUVertexBufferDescription
+:- record vertex_buffer_description(
+   slot:nonneg=0,
+   pitch:nonneg,
+   input_rate:sdl_gpu_vertex_input_rate=vertex,
+   instance_step_rate:nonneg=0
+).
+
+% SDL_GPUVertexAttribute
+:- record vertex_attribute(
+   location:nonneg,
+   buffer_slot:nonneg=0,
+   format:sdl_gpu_vertex_element_format,
+   offset:nonneg=0
+).
+
+% SDL_GPUStencilOpState.  Defaults match SDL's zero-initialization (invalid=0).
+% When enable_stencil_test is false these values are ignored.
+:- record stencil_op_state(
+   fail_op:sdl_gpu_stencil_op=invalid,
+   pass_op:sdl_gpu_stencil_op=invalid,
+   depth_fail_op:sdl_gpu_stencil_op=invalid,
+   compare_op:sdl_gpu_compare_op=invalid
+).
+
+% SDL_GPUColorTargetBlendState
+:- record color_target_blend_state(
+   src_color_blendfactor:sdl_gpu_blend_factor=one,
+   dst_color_blendfactor:sdl_gpu_blend_factor=zero,
+   color_blend_op:sdl_gpu_blend_op=add,
+   src_alpha_blendfactor:sdl_gpu_blend_factor=one,
+   dst_alpha_blendfactor:sdl_gpu_blend_factor=zero,
+   alpha_blend_op:sdl_gpu_blend_op=add,
+   color_write_mask:list(sdl_gpu_color_component)=[r,g,b,a],
+   enable_blend:boolean=false,
+   enable_color_write_mask:boolean=false
+).
+
+% SDL_GPUColorTargetDescription
+:- record color_target_description(
+   format:sdl_gpu_texture_format,
+   blend_state:color_target_blend_state
+).
+
+% SDL_GPUVertexInputState (no pointer fields; lists are inlined)
+:- record vertex_input_state(
+   vertex_buffer_descriptions:list(vertex_buffer_description)=[],
+   vertex_attributes:list(vertex_attribute)=[]
+).
+
+% SDL_GPURasterizerState
+:- record rasterizer_state(
+   fill_mode:sdl_gpu_fill_mode=fill,
+   cull_mode:sdl_gpu_cull_mode=none,
+   front_face:sdl_gpu_front_face=counter_clockwise,
+   depth_bias_constant_factor:number=0.0,
+   depth_bias_clamp:number=0.0,
+   depth_bias_slope_factor:number=0.0,
+   enable_depth_bias:boolean=false,
+   enable_depth_clip:boolean=true
+).
+
+% SDL_GPUMultisampleState
+:- record multisample_state(
+   sample_count:sdl_gpu_sample_count=1,
+   sample_mask:nonneg=0,
+   enable_mask:boolean=false,
+   enable_alpha_to_coverage:boolean=false
+).
+
+% SDL_GPUDepthStencilState
+:- record depth_stencil_state(
+   compare_op:sdl_gpu_compare_op=less,
+   back_stencil_state:stencil_op_state,
+   front_stencil_state:stencil_op_state,
+   compare_mask:between(0,255)=255,
+   write_mask:between(0,255)=255,
+   enable_depth_test:boolean=false,
+   enable_depth_write:boolean=true,
+   enable_stencil_test:boolean=false
+).
+
+% SDL_GPUGraphicsPipelineTargetInfo.  depth_stencil_format defaults to
+% invalid (0) — it is ignored when has_depth_stencil_target is false.
+:- record target_info(
+   color_target_descriptions:list(color_target_description)=[],
+   depth_stencil_format:sdl_gpu_texture_format=invalid,
+   has_depth_stencil_target:boolean=false
+).
+
+% SDL_GPUGraphicsPipelineCreateInfo (props is always 0, omitted)
+:- record gpu_graphics_pipeline_create_info(
+   vertex_shader:sdl_gpu_shader_blob,
+   fragment_shader:sdl_gpu_shader_blob,
+   vertex_input_state:vertex_input_state,
+   primitive_type:sdl_gpu_primitive_type=trianglelist,
+   rasterizer_state:rasterizer_state,
+   multisample_state:multisample_state,
+   depth_stencil_state:depth_stencil_state,
+   target_info:target_info
+).
+
 % Type aliases backed by the generated is_*/1 predicates.
 error:has_type(sdl_gpu_color_target, X) :- is_color_target(X).
 error:has_type(sdl_gpu_depth_stencil_target, X) :- is_depth_stencil_target(X).
 error:has_type(sdl_gpu_texture_create_info, X) :- is_gpu_texture_create_info(X).
+error:has_type(sdl_gpu_shader_create_info, X) :- is_gpu_shader_create_info(X).
+error:has_type(vertex_buffer_description, X) :- is_vertex_buffer_description(X).
+error:has_type(vertex_attribute, X) :- is_vertex_attribute(X).
+error:has_type(stencil_op_state, X) :- is_stencil_op_state(X).
+error:has_type(color_target_blend_state, X) :- is_color_target_blend_state(X).
+error:has_type(color_target_description, X) :- is_color_target_description(X).
+error:has_type(vertex_input_state, X) :- is_vertex_input_state(X).
+error:has_type(rasterizer_state, X) :- is_rasterizer_state(X).
+error:has_type(multisample_state, X) :- is_multisample_state(X).
+error:has_type(depth_stencil_state, X) :- is_depth_stencil_state(X).
+error:has_type(target_info, X) :- is_target_info(X).
+error:has_type(sdl_gpu_graphics_pipeline_create_info, X) :- is_gpu_graphics_pipeline_create_info(X).
 
 % --- SDL_gpu: render pass ---------------------------------------------------
 % A render pass targets one or more color textures (typically the swapchain
@@ -840,3 +1159,166 @@ texture_create_info_int(
    sdl_gpu_sample_count(SampleCount, IntSampleCount),
    IntInfo = gpu_texture_create_info(IntType, IntFormat, IntUsage, Width, Height,
                                      LayerCountOrDepth, NumLevels, IntSampleCount).
+
+% --- SDL_gpu: create / release shader ---------------------------------------
+% Creates a GPU shader from precompiled bytecode (e.g. SPIR-V for Vulkan)
+% and releases it.  The gpu_shader_create_info record maps 1-to-1 to
+% SDL_GPUShaderCreateInfo (props is always 0).  Code is a Prolog string
+% containing raw bytecode — read it from a .spv file with
+% read_file_to_string(File, Code, [type(binary)]).
+%
+% The blob is owning: destroy() calls SDL_ReleaseGPUShader.  It holds a
+% parent ref to the device, pinning it against GC.  Releasing an
+% already-released shader raises existence_error(shader, Shader).
+
+sdl_creategpushader(Shader, Device, CreateInfo) :-
+   must_be(var, Shader),
+   must_be(sdl_gpu_device_blob, Device),
+   must_be(sdl_gpu_shader_create_info, CreateInfo),
+   shader_create_info_int(CreateInfo, IntCreateInfo),
+   sdl_creategpushader_(Shader, Device, IntCreateInfo).
+
+sdl_releasegpushader(Shader) :-
+   must_be(sdl_gpu_shader_blob, Shader),
+   sdl_releasegpushader_(Shader).
+
+% Translate gpu_shader_create_info atoms (Format, Stage) to ints for the
+% foreign predicate.  Code and Entrypoint are strings, passed through
+% unchanged.
+shader_create_info_int(
+   gpu_shader_create_info(Code, Entrypoint, Format, Stage,
+                          NumSamplers, NumStorageTextures,
+                          NumStorageBuffers, NumUniformBuffers),
+   IntInfo) =>
+   sdl_gpu_shader_format(Format, IntFormat),
+   sdl_gpu_shader_stage(Stage, IntStage),
+   IntInfo = gpu_shader_create_info(Code, Entrypoint, IntFormat, IntStage,
+                                    NumSamplers, NumStorageTextures,
+                                    NumStorageBuffers, NumUniformBuffers).
+
+% --- SDL_gpu: create / release graphics pipeline ----------------------------
+% Creates a graphics pipeline from a gpu_graphics_pipeline_create_info record
+% and releases it.  The record maps 1-to-1 to SDL_GPUGraphicsPipelineCreateInfo
+% (props is always 0), with nested records for each sub-struct.
+%
+% The blob is owning: destroy() calls SDL_ReleaseGPUGraphicsPipeline.  It
+% holds a parent ref to the device.  Releasing an already-released pipeline
+% raises existence_error(pipeline, Pipeline).
+
+sdl_creategpugraphicspipeline(Pipeline, Device, CreateInfo) :-
+   must_be(var, Pipeline),
+   must_be(sdl_gpu_device_blob, Device),
+   must_be(sdl_gpu_graphics_pipeline_create_info, CreateInfo),
+   graphics_pipeline_create_info_int(CreateInfo, IntCreateInfo),
+   sdl_creategpugraphicspipeline_(Pipeline, Device, IntCreateInfo).
+
+sdl_releasegpugraphicspipeline(Pipeline) :-
+   must_be(sdl_gpu_pipeline_blob, Pipeline),
+   sdl_releasegpugraphicspipeline_(Pipeline).
+
+% Translate all enum/flag atoms in the pipeline create info to ints.
+% Each sub-record is destructured and reconstructed with int values.
+graphics_pipeline_create_info_int(
+   gpu_graphics_pipeline_create_info(VertShader, FragShader,
+                                     VertexInputState, PrimitiveType,
+                                     RasterizerState, MultisampleState,
+                                     DepthStencilState, TargetInfo),
+   IntInfo) =>
+   sdl_gpu_primitive_type(PrimitiveType, IntPrimitiveType),
+   vertex_input_state_int(VertexInputState, IntVIS),
+   rasterizer_state_int(RasterizerState, IntRS),
+   multisample_state_int(MultisampleState, IntMS),
+   depth_stencil_state_int(DepthStencilState, IntDSS),
+   target_info_int(TargetInfo, IntTI),
+   IntInfo = gpu_graphics_pipeline_create_info(
+      VertShader, FragShader, IntVIS, IntPrimitiveType,
+      IntRS, IntMS, IntDSS, IntTI).
+
+vertex_input_state_int(
+   vertex_input_state(VBDescs, VAttrs),
+   IntVIS) =>
+   maplist(vertex_buffer_description_int, VBDescs, IntVBDescs),
+   maplist(vertex_attribute_int, VAttrs, IntVAttrs),
+   IntVIS = vertex_input_state(IntVBDescs, IntVAttrs).
+
+vertex_buffer_description_int(
+   vertex_buffer_description(Slot, Pitch, InputRate, InstanceStepRate),
+   IntVBD) =>
+   sdl_gpu_vertex_input_rate(InputRate, IntInputRate),
+   IntVBD = vertex_buffer_description(Slot, Pitch, IntInputRate, InstanceStepRate).
+
+vertex_attribute_int(
+   vertex_attribute(Location, BufferSlot, Format, Offset),
+   IntVA) =>
+   sdl_gpu_vertex_element_format(Format, IntFormat),
+   IntVA = vertex_attribute(Location, BufferSlot, IntFormat, Offset).
+
+rasterizer_state_int(
+   rasterizer_state(FillMode, CullMode, FrontFace, DBCF, DBC, DBSF,
+                    EnableDepthBias, EnableDepthClip),
+   IntRS) =>
+   sdl_gpu_fill_mode(FillMode, IntFillMode),
+   sdl_gpu_cull_mode(CullMode, IntCullMode),
+   sdl_gpu_front_face(FrontFace, IntFrontFace),
+   IntRS = rasterizer_state(IntFillMode, IntCullMode, IntFrontFace,
+                            DBCF, DBC, DBSF, EnableDepthBias, EnableDepthClip).
+
+multisample_state_int(
+   multisample_state(SampleCount, SampleMask, EnableMask, EnableAlphaToCoverage),
+   IntMS) =>
+   sdl_gpu_sample_count(SampleCount, IntSampleCount),
+   IntMS = multisample_state(IntSampleCount, SampleMask, EnableMask,
+                             EnableAlphaToCoverage).
+
+stencil_op_state_int(
+   stencil_op_state(FailOp, PassOp, DepthFailOp, CompareOp),
+   IntSOS) =>
+   sdl_gpu_stencil_op(FailOp, IntFailOp),
+   sdl_gpu_stencil_op(PassOp, IntPassOp),
+   sdl_gpu_stencil_op(DepthFailOp, IntDepthFailOp),
+   sdl_gpu_compare_op(CompareOp, IntCompareOp),
+   IntSOS = stencil_op_state(IntFailOp, IntPassOp, IntDepthFailOp, IntCompareOp).
+
+depth_stencil_state_int(
+   depth_stencil_state(CompareOp, BackStencilState, FrontStencilState,
+                       CompareMask, WriteMask, EnableDepthTest,
+                       EnableDepthWrite, EnableStencilTest),
+   IntDSS) =>
+   sdl_gpu_compare_op(CompareOp, IntCompareOp),
+   stencil_op_state_int(BackStencilState, IntBSS),
+   stencil_op_state_int(FrontStencilState, IntFSS),
+   IntDSS = depth_stencil_state(IntCompareOp, IntBSS, IntFSS,
+                                CompareMask, WriteMask, EnableDepthTest,
+                                EnableDepthWrite, EnableStencilTest).
+
+color_target_blend_state_int(
+   color_target_blend_state(SrcColorBF, DstColorBF, ColorBlendOp,
+                            SrcAlphaBF, DstAlphaBF, AlphaBlendOp,
+                            ColorWriteMask, EnableBlend, EnableColorWriteMask),
+   IntCTBS) =>
+   sdl_gpu_blend_factor(SrcColorBF, IntSrcColorBF),
+   sdl_gpu_blend_factor(DstColorBF, IntDstColorBF),
+   sdl_gpu_blend_op(ColorBlendOp, IntColorBlendOp),
+   sdl_gpu_blend_factor(SrcAlphaBF, IntSrcAlphaBF),
+   sdl_gpu_blend_factor(DstAlphaBF, IntDstAlphaBF),
+   sdl_gpu_blend_op(AlphaBlendOp, IntAlphaBlendOp),
+   maplist(sdl_gpu_color_component, ColorWriteMask, CWMInts),
+   or_list(CWMInts, IntColorWriteMask),
+   IntCTBS = color_target_blend_state(
+      IntSrcColorBF, IntDstColorBF, IntColorBlendOp,
+      IntSrcAlphaBF, IntDstAlphaBF, IntAlphaBlendOp,
+      IntColorWriteMask, EnableBlend, EnableColorWriteMask).
+
+color_target_description_int(
+   color_target_description(Format, BlendState),
+   IntCTD) =>
+   sdl_gpu_texture_format(Format, IntFormat),
+   color_target_blend_state_int(BlendState, IntBlendState),
+   IntCTD = color_target_description(IntFormat, IntBlendState).
+
+target_info_int(
+   target_info(ColorTargetDescriptions, DepthStencilFormat, HasDepthStencilTarget),
+   IntTI) =>
+   maplist(color_target_description_int, ColorTargetDescriptions, IntCTDs),
+   sdl_gpu_texture_format(DepthStencilFormat, IntDSFormat),
+   IntTI = target_info(IntCTDs, IntDSFormat, HasDepthStencilTarget).
