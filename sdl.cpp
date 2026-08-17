@@ -1720,4 +1720,97 @@ PREDICATE(sdl_releasegpubuffer_, 1) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// SDL_gpu transfer buffer
+//
+// Created via SDL_CreateGPUTransferBuffer, released via
+// SDL_ReleaseGPUTransferBuffer.  Transfer buffers are the staging area for
+// uploading data to GPU buffers/textures (upload) or downloading from them
+// (download).  The blob stores both the transfer buffer and device pointers
+// (release needs both), and holds a parent ref to the device for GC safety.
+// ---------------------------------------------------------------------------
+
+struct SDLGPUTransferBufferBlob;
+
+static PL_blob_t sdl_gpu_transfer_buffer_blob =
+    PL_BLOB_DEFINITION(SDLGPUTransferBufferBlob,
+                       "sdl_gpu_transfer_buffer_blob");
+
+struct SDLGPUTransferBufferBlob : public PlBlob {
+  SDL_GPUTransferBuffer *transfer_buffer_;
+  SDL_GPUDevice *device_;
+  PlAtom parent_;
+
+  explicit SDLGPUTransferBufferBlob()
+      : PlBlob(&sdl_gpu_transfer_buffer_blob), transfer_buffer_(NULL),
+        device_(NULL), parent_(PlAtom::null) {}
+
+  explicit SDLGPUTransferBufferBlob(SDL_GPUTransferBuffer *tb,
+                                    SDL_GPUDevice *device, PlAtom parent)
+      : PlBlob(&sdl_gpu_transfer_buffer_blob), transfer_buffer_(tb),
+        device_(device), parent_(parent) {
+    parent_.register_ref();
+  }
+
+  PL_BLOB_SIZE
+
+  void portray(PlStream &strm) const {
+    strm.printf("sdl_gpu_transfer_buffer_blob<%p>(%p)", this,
+                transfer_buffer_);
+  }
+
+  void destroy() noexcept {
+    if (transfer_buffer_ != NULL) {
+      SDL_ReleaseGPUTransferBuffer(device_, transfer_buffer_);
+      transfer_buffer_ = NULL;
+    }
+    device_ = NULL;
+    if (parent_.not_null()) {
+      parent_.unregister_ref();
+      parent_.set_null();
+    }
+  }
+
+  virtual ~SDLGPUTransferBufferBlob() noexcept { destroy(); }
+};
+
+PREDICATE(sdl_gpu_transfer_buffer_blob_portray, 2) {
+  auto ref = PlBlobV<SDLGPUTransferBufferBlob>::cast_ex(
+      A2, sdl_gpu_transfer_buffer_blob);
+  PlStream strm(A1, 0);
+  ref->portray(strm);
+  return true;
+}
+
+// sdl_creategputransferbuffer_(-TransferBuffer, +Device, +Usage:int, +Size:int)
+PREDICATE(sdl_creategputransferbuffer_, 4) {
+  auto device_ref = PlBlobV<SDLGPUDeviceBlob>::cast_ex(A2, sdl_gpu_device_blob);
+  SDL_GPUTransferBufferCreateInfo info;
+  memset(&info, 0, sizeof(info));
+  info.usage = (SDL_GPUTransferBufferUsage)A3.as_int();
+  info.size = A4.as_uint32_t();
+  SDL_GPUTransferBuffer *tb =
+      SDL_CreateGPUTransferBuffer(device_ref->device_, &info);
+  if (tb == NULL) {
+    throw PlUnknownError(SDL_GetError());
+  }
+  auto ref = std::unique_ptr<PlBlob>(
+      new SDLGPUTransferBufferBlob(tb, device_ref->device_,
+                                   device_ref->symbol_));
+  return A1.unify_blob(&ref);
+}
+
+// sdl_releasegputransferbuffer_(+TransferBuffer)
+PREDICATE(sdl_releasegputransferbuffer_, 1) {
+  auto ref = PlBlobV<SDLGPUTransferBufferBlob>::cast_ex(
+      A1, sdl_gpu_transfer_buffer_blob);
+  if (ref->transfer_buffer_ == NULL) {
+    throw PlExistenceError("transfer_buffer", A1);
+  }
+  SDL_ReleaseGPUTransferBuffer(ref->device_, ref->transfer_buffer_);
+  ref->transfer_buffer_ = NULL;
+  ref->device_ = NULL;
+  return true;
+}
+
 

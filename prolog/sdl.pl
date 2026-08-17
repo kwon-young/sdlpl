@@ -29,7 +29,10 @@
                 sdl_releasegpugraphicspipeline/1,
                 sdl_creategpubuffer/4,
                 sdl_releasegpubuffer/1,
+                sdl_creategputransferbuffer/4,
+                sdl_releasegputransferbuffer/1,
                 sdl_gpu_buffer_usage/2,
+                sdl_gpu_transfer_buffer_usage/2,
                 sdl_gpu_load_op/2,
                 sdl_gpu_store_op/2,
                 sdl_gpu_texture_type/2,
@@ -83,6 +86,7 @@ error:has_type(sdl_gpu_texture_blob, X) :- blob(X, sdl_gpu_texture_blob).
 error:has_type(sdl_gpu_shader_blob, X) :- blob(X, sdl_gpu_shader_blob).
 error:has_type(sdl_gpu_pipeline_blob, X) :- blob(X, sdl_gpu_pipeline_blob).
 error:has_type(sdl_gpu_buffer_blob, X) :- blob(X, sdl_gpu_buffer_blob).
+error:has_type(sdl_gpu_transfer_buffer_blob, X) :- blob(X, sdl_gpu_transfer_buffer_blob).
 % sdl_gpu_texture accepts either a swapchain texture blob or a regular GPU
 % texture blob.  Used as a field type in color_target and depth_stencil_target
 % records.
@@ -118,6 +122,7 @@ error:has_type(sdl_gpu_vertex_input_rate, X) :- sdl_gpu_vertex_input_rate(X, _).
 error:has_type(sdl_gpu_vertex_element_format, X) :- sdl_gpu_vertex_element_format(X, _).
 error:has_type(sdl_gpu_color_component, X) :- sdl_gpu_color_component(X, _).
 error:has_type(sdl_gpu_buffer_usage, X) :- sdl_gpu_buffer_usage(X, _).
+error:has_type(sdl_gpu_transfer_buffer_usage, X) :- sdl_gpu_transfer_buffer_usage(X, _).
 error:has_type(sdl_init_flag,   X) :- sdl_init_flag(X, _).
 error:has_type(sdl_window_flag, X) :- sdl_window_flag(X, _).
 error:has_type(sdl_windowpos,   X) :- ( atom(X) -> sdl_windowpos(X, _) ; integer(X) ).
@@ -159,6 +164,8 @@ prolog:error_message(type_error(sdl_gpu_pipeline_blob, Culprit)) -->
    [ 'sdl_gpu_pipeline_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_buffer_blob, Culprit)) -->
    [ 'sdl_gpu_buffer_blob, found ~q'-[Culprit] ].
+prolog:error_message(type_error(sdl_gpu_transfer_buffer_blob, Culprit)) -->
+   [ 'sdl_gpu_transfer_buffer_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture, Culprit)) -->
    [ 'sdl_gpu_texture (swapchain or regular texture blob), found ~q'-[Culprit] ].
 prolog:error_message(type_error(fcolor, Culprit)) -->
@@ -219,6 +226,9 @@ prolog:error_message(type_error(sdl_gpu_color_component, Culprit)) -->
 prolog:error_message(type_error(sdl_gpu_buffer_usage, Culprit)) -->
    { findall(F, sdl_gpu_buffer_usage(F, _), Fs) },
    [ 'sdl_gpu_buffer_usage (one of ~q), found ~q'-[Fs, Culprit] ].
+prolog:error_message(type_error(sdl_gpu_transfer_buffer_usage, Culprit)) -->
+   { findall(F, sdl_gpu_transfer_buffer_usage(F, _), Fs) },
+   [ 'sdl_gpu_transfer_buffer_usage (one of ~q), found ~q'-[Fs, Culprit] ].
 prolog:error_message(type_error(sdl_gpu_color_target, Culprit)) -->
    [ 'sdl_gpu_color_target (record color_target/11), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_depth_stencil_target, Culprit)) -->
@@ -268,6 +278,9 @@ user:portray(Pipeline) :-
 user:portray(Buffer) :-
    blob(Buffer, sdl_gpu_buffer_blob), !,
    sdl_gpu_buffer_blob_portray(current_output, Buffer).
+user:portray(TransferBuffer) :-
+   blob(TransferBuffer, sdl_gpu_transfer_buffer_blob), !,
+   sdl_gpu_transfer_buffer_blob_portray(current_output, TransferBuffer).
 
 sdl_init_flag(audio, 0x00000010).
 sdl_init_flag(video, 0x00000020).
@@ -1362,3 +1375,25 @@ sdl_creategpubuffer(Buffer, Device, Usage, Size) :-
 sdl_releasegpubuffer(Buffer) :-
    must_be(sdl_gpu_buffer_blob, Buffer),
    sdl_releasegpubuffer_(Buffer).
+
+% --- SDL_gpu: create / release transfer buffer ------------------------------
+% Creates a transfer buffer (staging area for uploading/downloading GPU data)
+% and releases it.  Usage is a sdl_gpu_transfer_buffer_usage atom (upload or
+% download).  Size is the buffer size in bytes.  The blob is owning:
+% destroy() calls SDL_ReleaseGPUTransferBuffer.  Releasing an already-released
+% transfer buffer raises existence_error(transfer_buffer, TransferBuffer).
+
+sdl_gpu_transfer_buffer_usage(upload, 0).
+sdl_gpu_transfer_buffer_usage(download, 1).
+
+sdl_creategputransferbuffer(TransferBuffer, Device, Usage, Size) :-
+   must_be(var, TransferBuffer),
+   must_be(sdl_gpu_device_blob, Device),
+   must_be(sdl_gpu_transfer_buffer_usage, Usage),
+   must_be(nonneg, Size),
+   sdl_gpu_transfer_buffer_usage(Usage, IntUsage),
+   sdl_creategputransferbuffer_(TransferBuffer, Device, IntUsage, Size).
+
+sdl_releasegputransferbuffer(TransferBuffer) :-
+   must_be(sdl_gpu_transfer_buffer_blob, TransferBuffer),
+   sdl_releasegputransferbuffer_(TransferBuffer).

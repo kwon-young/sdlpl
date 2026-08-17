@@ -720,6 +720,54 @@ test(releasegpubuffer_double_release, [
    sdl_releasegpubuffer(Buffer),
    sdl_releasegpubuffer(Buffer).
 
+% --- SDL_gpu: create / release transfer buffer -------------------------------
+
+test(creategputransferbuffer, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   setup_call_cleanup(
+      sdl_creategputransferbuffer(TB, Device, upload, 1024),
+      true,
+      sdl_releasegputransferbuffer(TB)).
+
+test(creategputransferbuffer_download, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   setup_call_cleanup(
+      sdl_creategputransferbuffer(TB, Device, download, 512),
+      true,
+      sdl_releasegputransferbuffer(TB)).
+
+test(creategputransferbuffer_device_type_error, [
+   error(type_error(sdl_gpu_device_blob, not_a_blob))]) :-
+   sdl_creategputransferbuffer(_, not_a_blob, upload, 1024).
+
+test(creategputransferbuffer_usage_type_error, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit)),
+   error(type_error(sdl_gpu_transfer_buffer_usage, bogus))]) :-
+   sdl_creategputransferbuffer(_, Device, bogus, 1024).
+
+test(releasegputransferbuffer_type_error, [
+   error(type_error(sdl_gpu_transfer_buffer_blob, not_a_blob))]) :-
+   sdl_releasegputransferbuffer(not_a_blob).
+
+test(releasegputransferbuffer_double_release, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          sdl_creategputransferbuffer(TB, Device, upload, 1024))),
+   cleanup((sdl_destroygpudevice(Device),
+            sdl_quit)),
+   error(existence_error(transfer_buffer, _))]) :-
+   sdl_releasegputransferbuffer(TB),
+   sdl_releasegputransferbuffer(TB).
+
 :- end_tests(sdl).
 
 test_sdl :-
