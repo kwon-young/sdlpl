@@ -78,7 +78,8 @@
                 make_multisample_state/2, default_multisample_state/1, is_multisample_state/1,
                 make_depth_stencil_state/2, default_depth_stencil_state/1, is_depth_stencil_state/1,
                 make_target_info/2, default_target_info/1, is_target_info/1,
-                make_gpu_graphics_pipeline_create_info/2, default_gpu_graphics_pipeline_create_info/1, is_gpu_graphics_pipeline_create_info/1
+                make_gpu_graphics_pipeline_create_info/2, default_gpu_graphics_pipeline_create_info/1, is_gpu_graphics_pipeline_create_info/1,
+                make_buffer_binding/2, default_buffer_binding/1, is_buffer_binding/1
                 ]).
 :- use_foreign_library(foreign(sdl)).
 :- use_module(library(ptr)).
@@ -105,9 +106,6 @@ error:has_type(transfer_buffer_location, X) :-
 error:has_type(buffer_region, X) :-
    compound(X),
    compound_name_arity(X, buffer_region, 3).
-error:has_type(buffer_binding, X) :-
-   compound(X),
-   compound_name_arity(X, buffer_binding, 2).
 error:has_type(sdl_gpu_index_element_size, X) :- sdl_gpu_index_element_size(X, _).
 % sdl_gpu_texture accepts either a swapchain texture blob or a regular GPU
 % texture blob.  Used as a field type in color_target and depth_stencil_target
@@ -195,7 +193,7 @@ prolog:error_message(type_error(transfer_buffer_location, Culprit)) -->
 prolog:error_message(type_error(buffer_region, Culprit)) -->
    [ 'buffer_region (buffer_region/3 compound), found ~q'-[Culprit] ].
 prolog:error_message(type_error(buffer_binding, Culprit)) -->
-   [ 'buffer_binding (buffer_binding/2 compound), found ~q'-[Culprit] ].
+   [ 'buffer_binding (record buffer_binding/2), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_index_element_size, Culprit)) -->
    { findall(F, sdl_gpu_index_element_size(F, _), Fs) },
    [ 'sdl_gpu_index_element_size (one of ~q), found ~q'-[Fs, Culprit] ].
@@ -1116,6 +1114,12 @@ sdl_gpu_color_component(a, 0x08).
    target_info:target_info
 ).
 
+% SDL_GPUBufferBinding — used for binding vertex and index buffers.
+:- record buffer_binding(
+   buffer:sdl_gpu_buffer_blob,
+   offset:nonneg=0
+).
+
 % Type aliases backed by the generated is_*/1 predicates.
 error:has_type(sdl_gpu_color_target, X) :- is_color_target(X).
 error:has_type(sdl_gpu_depth_stencil_target, X) :- is_depth_stencil_target(X).
@@ -1132,6 +1136,7 @@ error:has_type(multisample_state, X) :- is_multisample_state(X).
 error:has_type(depth_stencil_state, X) :- is_depth_stencil_state(X).
 error:has_type(target_info, X) :- is_target_info(X).
 error:has_type(sdl_gpu_graphics_pipeline_create_info, X) :- is_gpu_graphics_pipeline_create_info(X).
+error:has_type(buffer_binding, X) :- is_buffer_binding(X).
 
 % --- SDL_gpu: render pass ---------------------------------------------------
 % A render pass targets one or more color textures (typically the swapchain
@@ -1516,15 +1521,12 @@ sdl_bindgpuvertexbuffers(RenderPass, FirstSlot, Bindings) :-
    must_be(sdl_gpu_renderpass_blob, RenderPass),
    must_be(nonneg, FirstSlot),
    must_be(list(buffer_binding), Bindings),
-   maplist(buffer_binding_check, Bindings),
    sdl_bindgpuvertexbuffers_(RenderPass, FirstSlot, Bindings).
 
 sdl_bindgpuindexbuffer(RenderPass, Binding, IndexElementSize) :-
    must_be(sdl_gpu_renderpass_blob, RenderPass),
    must_be(buffer_binding, Binding),
    must_be(sdl_gpu_index_element_size, IndexElementSize),
-   Binding = buffer_binding(Buf, _),
-   must_be(sdl_gpu_buffer_blob, Buf),
    sdl_gpu_index_element_size(IndexElementSize, IntSize),
    sdl_bindgpuindexbuffer_(RenderPass, Binding, IntSize).
 
@@ -1548,7 +1550,3 @@ sdl_drawgpuprimitives(RenderPass, NumVertices, NumInstances,
    must_be(nonneg, FirstInstance),
    sdl_drawgpuprimitives_(RenderPass, NumVertices, NumInstances,
                           FirstVertex, FirstInstance).
-
-% Verify that a buffer_binding/2 contains a valid buffer blob.
-buffer_binding_check(buffer_binding(Buf, _)) :-
-   must_be(sdl_gpu_buffer_blob, Buf).
