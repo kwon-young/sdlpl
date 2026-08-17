@@ -36,6 +36,12 @@
                 sdl_begingpucopypass/2,
                 sdl_endgpucopypass/1,
                 sdl_uploadtogpubuffer/4,
+                sdl_bindgpugraphicspipeline/2,
+                sdl_bindgpuvertexbuffers/3,
+                sdl_bindgpuindexbuffer/3,
+                sdl_drawgpuindexedprimitives/6,
+                sdl_drawgpuprimitives/5,
+                sdl_gpu_index_element_size/2,
                 sdl_gpu_buffer_usage/2,
                 sdl_gpu_transfer_buffer_usage/2,
                 sdl_gpu_load_op/2,
@@ -99,6 +105,10 @@ error:has_type(transfer_buffer_location, X) :-
 error:has_type(buffer_region, X) :-
    compound(X),
    compound_name_arity(X, buffer_region, 3).
+error:has_type(buffer_binding, X) :-
+   compound(X),
+   compound_name_arity(X, buffer_binding, 2).
+error:has_type(sdl_gpu_index_element_size, X) :- sdl_gpu_index_element_size(X, _).
 % sdl_gpu_texture accepts either a swapchain texture blob or a regular GPU
 % texture blob.  Used as a field type in color_target and depth_stencil_target
 % records.
@@ -184,6 +194,11 @@ prolog:error_message(type_error(transfer_buffer_location, Culprit)) -->
    [ 'transfer_buffer_location (transfer_buffer_location/2 compound), found ~q'-[Culprit] ].
 prolog:error_message(type_error(buffer_region, Culprit)) -->
    [ 'buffer_region (buffer_region/3 compound), found ~q'-[Culprit] ].
+prolog:error_message(type_error(buffer_binding, Culprit)) -->
+   [ 'buffer_binding (buffer_binding/2 compound), found ~q'-[Culprit] ].
+prolog:error_message(type_error(sdl_gpu_index_element_size, Culprit)) -->
+   { findall(F, sdl_gpu_index_element_size(F, _), Fs) },
+   [ 'sdl_gpu_index_element_size (one of ~q), found ~q'-[Fs, Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture, Culprit)) -->
    [ 'sdl_gpu_texture (swapchain or regular texture blob), found ~q'-[Culprit] ].
 prolog:error_message(type_error(fcolor, Culprit)) -->
@@ -1480,3 +1495,60 @@ sdl_uploadtogpubuffer(CopyPass, Source, Destination, Cycle) :-
    Destination = buffer_region(Buf, _, _),
    must_be(sdl_gpu_buffer_blob, Buf),
    sdl_uploadtogpubuffer_(CopyPass, Source, Destination, Cycle).
+
+% --- SDL_gpu: draw commands -------------------------------------------------
+% These are render-pass commands — no blobs are created.  They record drawing
+% state into the command buffer via the render pass.
+%
+% A graphics pipeline must be bound before any draw calls.  Vertex buffers
+% and an optional index buffer are bound, then draw primitives or draw
+% indexed primitives is called.
+
+sdl_gpu_index_element_size('16bit', 0).
+sdl_gpu_index_element_size('32bit', 1).
+
+sdl_bindgpugraphicspipeline(RenderPass, Pipeline) :-
+   must_be(sdl_gpu_renderpass_blob, RenderPass),
+   must_be(sdl_gpu_pipeline_blob, Pipeline),
+   sdl_bindgpugraphicspipeline_(RenderPass, Pipeline).
+
+sdl_bindgpuvertexbuffers(RenderPass, FirstSlot, Bindings) :-
+   must_be(sdl_gpu_renderpass_blob, RenderPass),
+   must_be(nonneg, FirstSlot),
+   must_be(list(buffer_binding), Bindings),
+   maplist(buffer_binding_check, Bindings),
+   sdl_bindgpuvertexbuffers_(RenderPass, FirstSlot, Bindings).
+
+sdl_bindgpuindexbuffer(RenderPass, Binding, IndexElementSize) :-
+   must_be(sdl_gpu_renderpass_blob, RenderPass),
+   must_be(buffer_binding, Binding),
+   must_be(sdl_gpu_index_element_size, IndexElementSize),
+   Binding = buffer_binding(Buf, _),
+   must_be(sdl_gpu_buffer_blob, Buf),
+   sdl_gpu_index_element_size(IndexElementSize, IntSize),
+   sdl_bindgpuindexbuffer_(RenderPass, Binding, IntSize).
+
+sdl_drawgpuindexedprimitives(RenderPass, NumIndices, NumInstances,
+                             FirstIndex, VertexOffset, FirstInstance) :-
+   must_be(sdl_gpu_renderpass_blob, RenderPass),
+   must_be(nonneg, NumIndices),
+   must_be(nonneg, NumInstances),
+   must_be(nonneg, FirstIndex),
+   must_be(integer, VertexOffset),
+   must_be(nonneg, FirstInstance),
+   sdl_drawgpuindexedprimitives_(RenderPass, NumIndices, NumInstances,
+                                 FirstIndex, VertexOffset, FirstInstance).
+
+sdl_drawgpuprimitives(RenderPass, NumVertices, NumInstances,
+                      FirstVertex, FirstInstance) :-
+   must_be(sdl_gpu_renderpass_blob, RenderPass),
+   must_be(nonneg, NumVertices),
+   must_be(nonneg, NumInstances),
+   must_be(nonneg, FirstVertex),
+   must_be(nonneg, FirstInstance),
+   sdl_drawgpuprimitives_(RenderPass, NumVertices, NumInstances,
+                          FirstVertex, FirstInstance).
+
+% Verify that a buffer_binding/2 contains a valid buffer blob.
+buffer_binding_check(buffer_binding(Buf, _)) :-
+   must_be(sdl_gpu_buffer_blob, Buf).

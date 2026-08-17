@@ -1984,4 +1984,94 @@ PREDICATE(sdl_uploadtogpubuffer_, 4) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// SDL_gpu draw commands
+//
+// These are render-pass commands — no blobs are created, no create/destroy
+// pairs.  They record drawing state into the command buffer via the render
+// pass.
+// ---------------------------------------------------------------------------
+
+// Helper: get a render pass pointer, checking it's not consumed.
+static SDL_GPURenderPass *get_render_pass(PlTerm term) {
+  auto ref =
+      PlBlobV<SDLGPURenderPassBlob>::cast_ex(term, sdl_gpu_renderpass_blob);
+  if (ref->pass_ == NULL) {
+    throw PlExistenceError("render_pass", term);
+  }
+  return ref->pass_;
+}
+
+// Helper: get a graphics pipeline pointer.
+static SDL_GPUGraphicsPipeline *get_graphics_pipeline(PlTerm term) {
+  auto ref =
+      PlBlobV<SDLGPUGraphicsPipelineBlob>::cast_ex(term, sdl_gpu_pipeline_blob);
+  if (ref->pipeline_ == NULL) {
+    throw PlExistenceError("pipeline", term);
+  }
+  return ref->pipeline_;
+}
+
+// Helper: parse a buffer_binding/2 compound into SDL_GPUBufferBinding.
+static SDL_GPUBufferBinding get_buffer_binding(PlTerm term) {
+  SDL_GPUBufferBinding binding;
+  auto ref = PlBlobV<SDLGPUBufferBlob>::cast_ex(term[1], sdl_gpu_buffer_blob);
+  binding.buffer = ref->buffer_;
+  binding.offset = term[2].as_uint32_t();
+  return binding;
+}
+
+// sdl_bindgpugraphicspipeline(+RenderPass, +Pipeline)
+PREDICATE(sdl_bindgpugraphicspipeline_, 2) {
+  SDL_GPURenderPass *pass = get_render_pass(A1);
+  SDL_GPUGraphicsPipeline *pipeline = get_graphics_pipeline(A2);
+  SDL_BindGPUGraphicsPipeline(pass, pipeline);
+  return true;
+}
+
+// sdl_bindgpuvertexbuffers(+RenderPass, +FirstSlot, +Bindings)
+// Bindings is a list of buffer_binding(Buffer, Offset) compounds.
+PREDICATE(sdl_bindgpuvertexbuffers_, 3) {
+  SDL_GPURenderPass *pass = get_render_pass(A1);
+  Uint32 first_slot = A2.as_uint32_t();
+  std::vector<SDL_GPUBufferBinding> bindings;
+  PlTerm_tail tail(A3);
+  PlTerm_var element;
+  while (tail.next(element)) {
+    bindings.push_back(get_buffer_binding(element));
+  }
+  SDL_BindGPUVertexBuffers(pass, first_slot, bindings.data(),
+                           (Uint32)bindings.size());
+  return true;
+}
+
+// sdl_bindgpuindexbuffer(+RenderPass, +Binding, +IndexElementSize:int)
+// Binding is buffer_binding(Buffer, Offset).
+PREDICATE(sdl_bindgpuindexbuffer_, 3) {
+  SDL_GPURenderPass *pass = get_render_pass(A1);
+  SDL_GPUBufferBinding binding = get_buffer_binding(A2);
+  SDL_GPUIndexElementSize size = (SDL_GPUIndexElementSize)A3.as_int();
+  SDL_BindGPUIndexBuffer(pass, &binding, size);
+  return true;
+}
+
+// sdl_drawgpuindexedprimitives(+RenderPass, +NumIndices, +NumInstances,
+//                              +FirstIndex, +VertexOffset, +FirstInstance)
+PREDICATE(sdl_drawgpuindexedprimitives_, 6) {
+  SDL_GPURenderPass *pass = get_render_pass(A1);
+  SDL_DrawGPUIndexedPrimitives(pass, A2.as_uint32_t(), A3.as_uint32_t(),
+                               A4.as_uint32_t(), A5.as_int32_t(),
+                               A6.as_uint32_t());
+  return true;
+}
+
+// sdl_drawgpuprimitives(+RenderPass, +NumVertices, +NumInstances,
+//                       +FirstVertex, +FirstInstance)
+PREDICATE(sdl_drawgpuprimitives_, 5) {
+  SDL_GPURenderPass *pass = get_render_pass(A1);
+  SDL_DrawGPUPrimitives(pass, A2.as_uint32_t(), A3.as_uint32_t(),
+                        A4.as_uint32_t(), A5.as_uint32_t());
+  return true;
+}
+
 

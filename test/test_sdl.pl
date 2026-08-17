@@ -861,6 +861,110 @@ test(uploadtogpubuffer_type_error, [
       transfer_buffer_location(not_a_blob, 0),
       buffer_region(not_a_blob, 0, 0), false).
 
+% --- SDL_gpu: draw commands --------------------------------------------------
+
+test(bindgpugraphicspipeline, [
+   setup((sdl_init([video]),
+          sdl_createwindow(Window, "", 400, 600, [vulkan]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          sdl_claimwindowforgpudevice(Device, Window),
+          shader_dir(Dir),
+          directory_file_path(Dir, 'tri.vert.spv', VertSpv),
+          directory_file_path(Dir, 'tri.frag.spv', FragSpv),
+          read_file_to_string(VertSpv, VertCode, [type(binary)]),
+          read_file_to_string(FragSpv, FragCode, [type(binary)]),
+          make_gpu_shader_create_info([code(VertCode), format(spirv), stage(vertex)], VertInfo),
+          make_gpu_shader_create_info([code(FragCode), format(spirv), stage(fragment)], FragInfo),
+          sdl_creategpushader(VertShader, Device, VertInfo),
+          sdl_creategpushader(FragShader, Device, FragInfo),
+          make_vertex_buffer_description([slot(0), pitch(24)], VBD),
+          make_vertex_attribute([location(0), buffer_slot(0), format(float2), offset(0)], PosAttr),
+          make_vertex_attribute([location(1), buffer_slot(0), format(float4), offset(8)], ColorAttr),
+          make_vertex_input_state([vertex_buffer_descriptions([VBD]), vertex_attributes([PosAttr, ColorAttr])], VIS),
+          default_rasterizer_state(RS),
+          default_multisample_state(MS),
+          default_stencil_op_state(SOS),
+          make_depth_stencil_state([back_stencil_state(SOS), front_stencil_state(SOS)], DSS),
+          make_color_target_blend_state([], BS),
+          make_color_target_description([format(b8g8r8a8_unorm), blend_state(BS)], CTD),
+          make_target_info([color_target_descriptions([CTD])], TI),
+          make_gpu_graphics_pipeline_create_info([vertex_shader(VertShader), fragment_shader(FragShader), vertex_input_state(VIS), rasterizer_state(RS), multisample_state(MS), depth_stencil_state(DSS), target_info(TI)], PipelineInfo),
+          sdl_creategpugraphicspipeline(Pipeline, Device, PipelineInfo),
+          sdl_acquiregpucommandbuffer(CmdBuf, Device),
+          sdl_waitandacquiregpuswapchaintexture(CmdBuf, Window, Tex, _, _))),
+   cleanup((sdl_submitgpucommandbuffer(CmdBuf),
+            sdl_releasegpugraphicspipeline(Pipeline),
+            sdl_releasegpushader(VertShader),
+            sdl_releasegpushader(FragShader),
+            sdl_releasewindowfromgpudevice(Device, Window),
+            sdl_destroygpudevice(Device),
+            sdl_destroywindow(Window),
+            sdl_quit))]) :-
+   (  Tex == null
+   -> true
+   ;  make_color_target([texture(Tex), load_op(clear), store_op(store)], CT),
+      sdl_begingpurenderpass(RenderPass, CmdBuf, [CT], null),
+      sdl_bindgpugraphicspipeline(RenderPass, Pipeline),
+      sdl_endgpurenderpass(RenderPass)
+   ).
+
+test(drawgpuprimitives, [
+   setup((sdl_init([video]),
+          sdl_createwindow(Window, "", 400, 600, [vulkan]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          sdl_claimwindowforgpudevice(Device, Window),
+          shader_dir(Dir),
+          directory_file_path(Dir, 'tri.vert.spv', VertSpv),
+          directory_file_path(Dir, 'tri.frag.spv', FragSpv),
+          read_file_to_string(VertSpv, VertCode, [type(binary)]),
+          read_file_to_string(FragSpv, FragCode, [type(binary)]),
+          make_gpu_shader_create_info([code(VertCode), format(spirv), stage(vertex)], VertInfo),
+          make_gpu_shader_create_info([code(FragCode), format(spirv), stage(fragment)], FragInfo),
+          sdl_creategpushader(VertShader, Device, VertInfo),
+          sdl_creategpushader(FragShader, Device, FragInfo),
+          make_vertex_buffer_description([slot(0), pitch(24)], VBD),
+          make_vertex_attribute([location(0), buffer_slot(0), format(float2), offset(0)], PosAttr),
+          make_vertex_attribute([location(1), buffer_slot(0), format(float4), offset(8)], ColorAttr),
+          make_vertex_input_state([vertex_buffer_descriptions([VBD]), vertex_attributes([PosAttr, ColorAttr])], VIS),
+          default_rasterizer_state(RS),
+          default_multisample_state(MS),
+          default_stencil_op_state(SOS),
+          make_depth_stencil_state([back_stencil_state(SOS), front_stencil_state(SOS)], DSS),
+          make_color_target_blend_state([], BS),
+          make_color_target_description([format(b8g8r8a8_unorm), blend_state(BS)], CTD),
+          make_target_info([color_target_descriptions([CTD])], TI),
+          make_gpu_graphics_pipeline_create_info([vertex_shader(VertShader), fragment_shader(FragShader), vertex_input_state(VIS), rasterizer_state(RS), multisample_state(MS), depth_stencil_state(DSS), target_info(TI)], PipelineInfo),
+          sdl_creategpugraphicspipeline(Pipeline, Device, PipelineInfo),
+          sdl_creategpubuffer(VertexBuffer, Device, [vertex], 72),
+          sdl_acquiregpucommandbuffer(CmdBuf, Device),
+          sdl_waitandacquiregpuswapchaintexture(CmdBuf, Window, Tex, _, _))),
+   cleanup((sdl_releasegpubuffer(VertexBuffer),
+            sdl_submitgpucommandbuffer(CmdBuf),
+            sdl_releasegpugraphicspipeline(Pipeline),
+            sdl_releasegpushader(VertShader),
+            sdl_releasegpushader(FragShader),
+            sdl_releasewindowfromgpudevice(Device, Window),
+            sdl_destroygpudevice(Device),
+            sdl_destroywindow(Window),
+            sdl_quit))]) :-
+   (  Tex == null
+   -> true
+   ;  make_color_target([texture(Tex), load_op(clear), store_op(store)], CT),
+      sdl_begingpurenderpass(RenderPass, CmdBuf, [CT], null),
+      sdl_bindgpugraphicspipeline(RenderPass, Pipeline),
+      sdl_bindgpuvertexbuffers(RenderPass, 0, [buffer_binding(VertexBuffer, 0)]),
+      sdl_drawgpuprimitives(RenderPass, 3, 1, 0, 0),
+      sdl_endgpurenderpass(RenderPass)
+   ).
+
+test(bindgpugraphicspipeline_type_error, [
+   error(type_error(sdl_gpu_renderpass_blob, not_a_blob))]) :-
+   sdl_bindgpugraphicspipeline(not_a_blob, not_a_blob).
+
+test(drawgpuprimitives_type_error, [
+   error(type_error(sdl_gpu_renderpass_blob, not_a_blob))]) :-
+   sdl_drawgpuprimitives(not_a_blob, 3, 1, 0, 0).
+
 :- end_tests(sdl).
 
 test_sdl :-
