@@ -79,7 +79,9 @@
                 make_depth_stencil_state/2, default_depth_stencil_state/1, is_depth_stencil_state/1,
                 make_target_info/2, default_target_info/1, is_target_info/1,
                 make_gpu_graphics_pipeline_create_info/2, default_gpu_graphics_pipeline_create_info/1, is_gpu_graphics_pipeline_create_info/1,
-                make_buffer_binding/2, default_buffer_binding/1, is_buffer_binding/1
+                make_buffer_binding/2, default_buffer_binding/1, is_buffer_binding/1,
+                make_transfer_buffer_location/2, default_transfer_buffer_location/1, is_transfer_buffer_location/1,
+                make_buffer_region/2, default_buffer_region/1, is_buffer_region/1
                 ]).
 :- use_foreign_library(foreign(sdl)).
 :- use_module(library(ptr)).
@@ -100,12 +102,6 @@ error:has_type(sdl_gpu_pipeline_blob, X) :- blob(X, sdl_gpu_pipeline_blob).
 error:has_type(sdl_gpu_buffer_blob, X) :- blob(X, sdl_gpu_buffer_blob).
 error:has_type(sdl_gpu_transfer_buffer_blob, X) :- blob(X, sdl_gpu_transfer_buffer_blob).
 error:has_type(sdl_gpu_copypass_blob, X) :- blob(X, sdl_gpu_copypass_blob).
-error:has_type(transfer_buffer_location, X) :-
-   compound(X),
-   compound_name_arity(X, transfer_buffer_location, 2).
-error:has_type(buffer_region, X) :-
-   compound(X),
-   compound_name_arity(X, buffer_region, 3).
 error:has_type(sdl_gpu_index_element_size, X) :- sdl_gpu_index_element_size(X, _).
 % sdl_gpu_texture accepts either a swapchain texture blob or a regular GPU
 % texture blob.  Used as a field type in color_target and depth_stencil_target
@@ -189,9 +185,9 @@ prolog:error_message(type_error(sdl_gpu_transfer_buffer_blob, Culprit)) -->
 prolog:error_message(type_error(sdl_gpu_copypass_blob, Culprit)) -->
    [ 'sdl_gpu_copypass_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(transfer_buffer_location, Culprit)) -->
-   [ 'transfer_buffer_location (transfer_buffer_location/2 compound), found ~q'-[Culprit] ].
+   [ 'transfer_buffer_location (record transfer_buffer_location/2), found ~q'-[Culprit] ].
 prolog:error_message(type_error(buffer_region, Culprit)) -->
-   [ 'buffer_region (buffer_region/3 compound), found ~q'-[Culprit] ].
+   [ 'buffer_region (record buffer_region/3), found ~q'-[Culprit] ].
 prolog:error_message(type_error(buffer_binding, Culprit)) -->
    [ 'buffer_binding (record buffer_binding/2), found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_index_element_size, Culprit)) -->
@@ -1120,6 +1116,19 @@ sdl_gpu_color_component(a, 0x08).
    offset:nonneg=0
 ).
 
+% SDL_GPUTransferBufferLocation — source for SDL_UploadToGPUBuffer.
+:- record transfer_buffer_location(
+   transfer_buffer:sdl_gpu_transfer_buffer_blob,
+   offset:nonneg=0
+).
+
+% SDL_GPUBufferRegion — destination for SDL_UploadToGPUBuffer.
+:- record buffer_region(
+   buffer:sdl_gpu_buffer_blob,
+   offset:nonneg=0,
+   size:nonneg
+).
+
 % Type aliases backed by the generated is_*/1 predicates.
 error:has_type(sdl_gpu_color_target, X) :- is_color_target(X).
 error:has_type(sdl_gpu_depth_stencil_target, X) :- is_depth_stencil_target(X).
@@ -1137,6 +1146,8 @@ error:has_type(depth_stencil_state, X) :- is_depth_stencil_state(X).
 error:has_type(target_info, X) :- is_target_info(X).
 error:has_type(sdl_gpu_graphics_pipeline_create_info, X) :- is_gpu_graphics_pipeline_create_info(X).
 error:has_type(buffer_binding, X) :- is_buffer_binding(X).
+error:has_type(transfer_buffer_location, X) :- is_transfer_buffer_location(X).
+error:has_type(buffer_region, X) :- is_buffer_region(X).
 
 % --- SDL_gpu: render pass ---------------------------------------------------
 % A render pass targets one or more color textures (typically the swapchain
@@ -1495,10 +1506,6 @@ sdl_uploadtogpubuffer(CopyPass, Source, Destination, Cycle) :-
    must_be(transfer_buffer_location, Source),
    must_be(buffer_region, Destination),
    must_be(boolean, Cycle),
-   Source = transfer_buffer_location(TB, _),
-   must_be(sdl_gpu_transfer_buffer_blob, TB),
-   Destination = buffer_region(Buf, _, _),
-   must_be(sdl_gpu_buffer_blob, Buf),
    sdl_uploadtogpubuffer_(CopyPass, Source, Destination, Cycle).
 
 % --- SDL_gpu: draw commands -------------------------------------------------
