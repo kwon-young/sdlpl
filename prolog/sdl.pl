@@ -31,6 +31,8 @@
                 sdl_releasegpubuffer/1,
                 sdl_creategputransferbuffer/4,
                 sdl_releasegputransferbuffer/1,
+                sdl_mapgputransferbuffer/3,
+                sdl_unmapgputransferbuffer/1,
                 sdl_gpu_buffer_usage/2,
                 sdl_gpu_transfer_buffer_usage/2,
                 sdl_gpu_load_op/2,
@@ -1397,3 +1399,24 @@ sdl_creategputransferbuffer(TransferBuffer, Device, Usage, Size) :-
 sdl_releasegputransferbuffer(TransferBuffer) :-
    must_be(sdl_gpu_transfer_buffer_blob, TransferBuffer),
    sdl_releasegputransferbuffer_(TransferBuffer).
+
+% --- SDL_gpu: map / unmap transfer buffer -----------------------------------
+% Maps a transfer buffer into application address space (returns a PtrBlob)
+% and unmaps it.  The PtrBlob is a non-owning view — the memory is owned by
+% the driver and must NOT be freed.  The PtrBlob's parent is the transfer
+% buffer blob, preventing GC from releasing it while mapped.  Must unmap
+% before encoding upload commands (SDL_UploadToGPUBuffer).
+%
+% This is the GPU equivalent of sdl_locktexture / sdl_unlocktexture: the
+% caller writes vertex/index data into the PtrBlob (via library(ptr) writers
+% or cairo), then unmaps and uploads.
+
+sdl_mapgputransferbuffer(Ptr, TransferBuffer, Cycle) :-
+   must_be(var, Ptr),
+   must_be(sdl_gpu_transfer_buffer_blob, TransferBuffer),
+   must_be(boolean, Cycle),
+   sdl_mapgputransferbuffer_(Ptr, TransferBuffer, Cycle).
+
+sdl_unmapgputransferbuffer(TransferBuffer) :-
+   must_be(sdl_gpu_transfer_buffer_blob, TransferBuffer),
+   sdl_unmapgputransferbuffer_(TransferBuffer).

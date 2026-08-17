@@ -1813,4 +1813,44 @@ PREDICATE(sdl_releasegputransferbuffer_, 1) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// SDL_gpu transfer buffer map / unmap
+//
+// Maps a transfer buffer into application address space so vertex/index data
+// can be written, then unmaps it.  The mapped pointer is returned as a
+// PtrBlob (non-owning view, like sdl_locktexture).  The PtrBlob's parent is
+// the transfer buffer blob, preventing GC from releasing the transfer buffer
+// while the mapping is live.  The memory is owned by the driver — do NOT
+// free it.  Must unmap before encoding upload commands.
+// ---------------------------------------------------------------------------
+
+// sdl_mapgputransferbuffer_(-Ptr, +TransferBuffer, +Cycle:bool)
+PREDICATE(sdl_mapgputransferbuffer_, 3) {
+  auto ref = PlBlobV<SDLGPUTransferBufferBlob>::cast_ex(
+      A2, sdl_gpu_transfer_buffer_blob);
+  if (ref->transfer_buffer_ == NULL) {
+    throw PlExistenceError("transfer_buffer", A2);
+  }
+  bool cycle = A3.as_bool();
+  void *ptr =
+      SDL_MapGPUTransferBuffer(ref->device_, ref->transfer_buffer_, cycle);
+  if (ptr == NULL) {
+    throw PlUnknownError(SDL_GetError());
+  }
+  auto blob = std::unique_ptr<PlBlob>(
+      new PtrBlob(ptr, ref->symbol_));
+  return A1.unify_blob(&blob);
+}
+
+// sdl_unmapgputransferbuffer_(+TransferBuffer)
+PREDICATE(sdl_unmapgputransferbuffer_, 1) {
+  auto ref = PlBlobV<SDLGPUTransferBufferBlob>::cast_ex(
+      A1, sdl_gpu_transfer_buffer_blob);
+  if (ref->transfer_buffer_ == NULL) {
+    throw PlExistenceError("transfer_buffer", A1);
+  }
+  SDL_UnmapGPUTransferBuffer(ref->device_, ref->transfer_buffer_);
+  return true;
+}
+
 

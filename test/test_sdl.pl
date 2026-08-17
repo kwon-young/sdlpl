@@ -768,6 +768,40 @@ test(releasegputransferbuffer_double_release, [
    sdl_releasegputransferbuffer(TB),
    sdl_releasegputransferbuffer(TB).
 
+% --- SDL_gpu: map / unmap transfer buffer ------------------------------------
+
+test(mapgputransferbuffer, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          sdl_creategputransferbuffer(TB, Device, upload, 1024))),
+   cleanup((sdl_releasegputransferbuffer(TB),
+            sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   setup_call_cleanup(
+      sdl_mapgputransferbuffer(Ptr, TB, false),
+      true,
+      sdl_unmapgputransferbuffer(TB)).
+
+test(mapgputransferbuffer_cycle, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          sdl_creategputransferbuffer(TB, Device, upload, 1024))),
+   cleanup((sdl_releasegputransferbuffer(TB),
+            sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   setup_call_cleanup(
+      sdl_mapgputransferbuffer(Ptr, TB, true),
+      true,
+      sdl_unmapgputransferbuffer(TB)).
+
+test(mapgputransferbuffer_type_error, [
+   error(type_error(sdl_gpu_transfer_buffer_blob, not_a_blob))]) :-
+   sdl_mapgputransferbuffer(_, not_a_blob, false).
+
+test(unmapgputransferbuffer_type_error, [
+   error(type_error(sdl_gpu_transfer_buffer_blob, not_a_blob))]) :-
+   sdl_unmapgputransferbuffer(not_a_blob).
+
 :- end_tests(sdl).
 
 test_sdl :-
