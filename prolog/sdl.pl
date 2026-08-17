@@ -33,6 +33,8 @@
                 sdl_releasegputransferbuffer/1,
                 sdl_mapgputransferbuffer/3,
                 sdl_unmapgputransferbuffer/1,
+                sdl_begingpucopypass/2,
+                sdl_endgpucopypass/1,
                 sdl_gpu_buffer_usage/2,
                 sdl_gpu_transfer_buffer_usage/2,
                 sdl_gpu_load_op/2,
@@ -89,6 +91,7 @@ error:has_type(sdl_gpu_shader_blob, X) :- blob(X, sdl_gpu_shader_blob).
 error:has_type(sdl_gpu_pipeline_blob, X) :- blob(X, sdl_gpu_pipeline_blob).
 error:has_type(sdl_gpu_buffer_blob, X) :- blob(X, sdl_gpu_buffer_blob).
 error:has_type(sdl_gpu_transfer_buffer_blob, X) :- blob(X, sdl_gpu_transfer_buffer_blob).
+error:has_type(sdl_gpu_copypass_blob, X) :- blob(X, sdl_gpu_copypass_blob).
 % sdl_gpu_texture accepts either a swapchain texture blob or a regular GPU
 % texture blob.  Used as a field type in color_target and depth_stencil_target
 % records.
@@ -168,6 +171,8 @@ prolog:error_message(type_error(sdl_gpu_buffer_blob, Culprit)) -->
    [ 'sdl_gpu_buffer_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_transfer_buffer_blob, Culprit)) -->
    [ 'sdl_gpu_transfer_buffer_blob, found ~q'-[Culprit] ].
+prolog:error_message(type_error(sdl_gpu_copypass_blob, Culprit)) -->
+   [ 'sdl_gpu_copypass_blob, found ~q'-[Culprit] ].
 prolog:error_message(type_error(sdl_gpu_texture, Culprit)) -->
    [ 'sdl_gpu_texture (swapchain or regular texture blob), found ~q'-[Culprit] ].
 prolog:error_message(type_error(fcolor, Culprit)) -->
@@ -283,6 +288,9 @@ user:portray(Buffer) :-
 user:portray(TransferBuffer) :-
    blob(TransferBuffer, sdl_gpu_transfer_buffer_blob), !,
    sdl_gpu_transfer_buffer_blob_portray(current_output, TransferBuffer).
+user:portray(CopyPass) :-
+   blob(CopyPass, sdl_gpu_copypass_blob), !,
+   sdl_gpu_copypass_blob_portray(current_output, CopyPass).
 
 sdl_init_flag(audio, 0x00000010).
 sdl_init_flag(video, 0x00000020).
@@ -1420,3 +1428,23 @@ sdl_mapgputransferbuffer(Ptr, TransferBuffer, Cycle) :-
 sdl_unmapgputransferbuffer(TransferBuffer) :-
    must_be(sdl_gpu_transfer_buffer_blob, TransferBuffer),
    sdl_unmapgputransferbuffer_(TransferBuffer).
+
+% --- SDL_gpu: copy pass -----------------------------------------------------
+% A copy pass is begun on a command buffer and is used for upload/download
+% operations (SDL_UploadToGPUBuffer, etc.).  All copy operations must take
+% place inside a copy pass.  You must not begin another copy pass, render
+% pass, or compute pass before ending the current copy pass.
+%
+% RAII: the copy pass blob holds a parent ref to the command buffer.  If
+% GC'd without being explicitly ended, destroy() calls SDL_EndGPUCopyPass
+% as a safety net.  After explicit end the blob is marked consumed.  Ending
+% an already-ended copy pass raises existence_error(copy_pass, CopyPass).
+
+sdl_begingpucopypass(CopyPass, CmdBuf) :-
+   must_be(var, CopyPass),
+   must_be(sdl_gpu_cmdbuf_blob, CmdBuf),
+   sdl_begingpucopypass_(CopyPass, CmdBuf).
+
+sdl_endgpucopypass(CopyPass) :-
+   must_be(sdl_gpu_copypass_blob, CopyPass),
+   sdl_endgpucopypass_(CopyPass).

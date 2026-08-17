@@ -1853,4 +1853,90 @@ PREDICATE(sdl_unmapgputransferbuffer_, 1) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// SDL_gpu copy pass
+//
+// A copy pass is begun on a command buffer and is used for upload/download
+// operations (SDL_UploadToGPUBuffer, SDL_UploadToGPUTexture, etc.).  The
+// copy pass is ended with SDL_EndGPUCopyPass, after which the handle is
+// invalid.
+//
+// RAII: the copy pass is managed by SDL (no destroy function).  If the blob
+// is GC'd without being explicitly ended, destroy() calls SDL_EndGPUCopyPass
+// as a safety net (same pattern as render pass).  After explicit end, the
+// pointer is set to NULL so destroy() is a no-op.  The blob holds a parent
+// ref to the command buffer.
+// ---------------------------------------------------------------------------
+
+struct SDLGPUCopyPassBlob;
+
+static PL_blob_t sdl_gpu_copypass_blob =
+    PL_BLOB_DEFINITION(SDLGPUCopyPassBlob, "sdl_gpu_copypass_blob");
+
+struct SDLGPUCopyPassBlob : public PlBlob {
+  SDL_GPUCopyPass *pass_;
+  PlAtom parent_;
+
+  explicit SDLGPUCopyPassBlob()
+      : PlBlob(&sdl_gpu_copypass_blob), pass_(NULL), parent_(PlAtom::null) {}
+
+  explicit SDLGPUCopyPassBlob(SDL_GPUCopyPass *pass, PlAtom cmdbuf)
+      : PlBlob(&sdl_gpu_copypass_blob), pass_(pass), parent_(cmdbuf) {
+    parent_.register_ref();
+  }
+
+  PL_BLOB_SIZE
+
+  void portray(PlStream &strm) const {
+    strm.printf("sdl_gpu_copypass_blob<%p>(%p)", this, pass_);
+  }
+
+  void destroy() noexcept {
+    if (pass_ != NULL) {
+      SDL_EndGPUCopyPass(pass_);
+      pass_ = NULL;
+    }
+    if (parent_.not_null()) {
+      parent_.unregister_ref();
+      parent_.set_null();
+    }
+  }
+
+  virtual ~SDLGPUCopyPassBlob() noexcept { destroy(); }
+};
+
+PREDICATE(sdl_gpu_copypass_blob_portray, 2) {
+  auto ref = PlBlobV<SDLGPUCopyPassBlob>::cast_ex(A2, sdl_gpu_copypass_blob);
+  PlStream strm(A1, 0);
+  ref->portray(strm);
+  return true;
+}
+
+// sdl_begingpucopypass_(-CopyPass, +CmdBuf)
+PREDICATE(sdl_begingpucopypass_, 2) {
+  auto cmdbuf_ref =
+      PlBlobV<SDLGPUCommandBufferBlob>::cast_ex(A2, sdl_gpu_cmdbuf_blob);
+  if (cmdbuf_ref->cmdbuf_ == NULL) {
+    throw PlExistenceError("command_buffer", A2);
+  }
+  SDL_GPUCopyPass *pass = SDL_BeginGPUCopyPass(cmdbuf_ref->cmdbuf_);
+  if (pass == NULL) {
+    throw PlUnknownError(SDL_GetError());
+  }
+  auto ref = std::unique_ptr<PlBlob>(
+      new SDLGPUCopyPassBlob(pass, cmdbuf_ref->symbol_));
+  return A1.unify_blob(&ref);
+}
+
+// sdl_endgpucopypass_(+CopyPass)
+PREDICATE(sdl_endgpucopypass_, 1) {
+  auto ref = PlBlobV<SDLGPUCopyPassBlob>::cast_ex(A1, sdl_gpu_copypass_blob);
+  if (ref->pass_ == NULL) {
+    throw PlExistenceError("copy_pass", A1);
+  }
+  SDL_EndGPUCopyPass(ref->pass_);
+  ref->pass_ = NULL;
+  return true;
+}
+
 

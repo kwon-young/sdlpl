@@ -802,6 +802,40 @@ test(unmapgputransferbuffer_type_error, [
    error(type_error(sdl_gpu_transfer_buffer_blob, not_a_blob))]) :-
    sdl_unmapgputransferbuffer(not_a_blob).
 
+% --- SDL_gpu: copy pass ------------------------------------------------------
+
+test(begingpucopypass, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          sdl_acquiregpucommandbuffer(CmdBuf, Device))),
+   cleanup((sdl_submitgpucommandbuffer(CmdBuf),
+            sdl_destroygpudevice(Device),
+            sdl_quit))]) :-
+   setup_call_cleanup(
+      sdl_begingpucopypass(CopyPass, CmdBuf),
+      true,
+      sdl_endgpucopypass(CopyPass)).
+
+test(begingpucopypass_cmdbuf_type_error, [
+   error(type_error(sdl_gpu_cmdbuf_blob, not_a_blob))]) :-
+   sdl_begingpucopypass(_, not_a_blob).
+
+test(endgpucopypass_type_error, [
+   error(type_error(sdl_gpu_copypass_blob, not_a_blob))]) :-
+   sdl_endgpucopypass(not_a_blob).
+
+test(endgpucopypass_double_end, [
+   setup((sdl_init([video]),
+          sdl_creategpudevice(Device, [spirv], false, null),
+          sdl_acquiregpucommandbuffer(CmdBuf, Device),
+          sdl_begingpucopypass(CopyPass, CmdBuf),
+          sdl_endgpucopypass(CopyPass))),
+   cleanup((sdl_submitgpucommandbuffer(CmdBuf),
+            sdl_destroygpudevice(Device),
+            sdl_quit)),
+   error(existence_error(copy_pass, _))]) :-
+   sdl_endgpucopypass(CopyPass).
+
 :- end_tests(sdl).
 
 test_sdl :-
