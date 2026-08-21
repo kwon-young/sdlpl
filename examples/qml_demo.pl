@@ -18,14 +18,14 @@ main :-
          y: 0,
          childs: [
             image{
-               source: "DSC03094.JPG",
+               source: "examples/DSC03094.JPG",
                x: 0,
                y: Img1Y,
                w: 100,
                h: 100
             },
             image{
-               source: "DSC03094.JPG",
+               source: "examples/DSC03094.JPG",
                x: 0,
                y: Img2Y,
                w: 100,

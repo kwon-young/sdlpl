@@ -38,16 +38,28 @@ pkg_check_modules(CAIRO REQUIRED IMPORTED_TARGET cairo)
 # A MODULE library is loaded dynamically by SWI-Prolog.  target_link_swipl
 # adds the SWI include dirs, links libswipl only when the platform needs it,
 # and strips the "lib" prefix so the file is sdl.so (not libsdl.so).
-add_library(sdl MODULE sdl.cpp)
+# Sources live in src/<module>/, one subdirectory per foreign extension.
+# ptr.h is shared across the sdl and cairo extensions, hence the include
+# path on both targets.
+add_library(sdl MODULE
+  src/sdl/sdl_init.cpp
+  src/sdl/sdl_video.cpp
+  src/sdl/sdl_render.cpp
+  src/sdl/sdl_events.cpp
+  src/sdl/sdl_surface.cpp
+  src/sdl/sdl_image.cpp
+  src/sdl/sdl_gpu.cpp)
 target_link_swipl(sdl)
 target_link_libraries(sdl PRIVATE SDL3::SDL3 SDL3_image::SDL3_image)
+target_include_directories(sdl PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/ptr)
 
-add_library(ptr MODULE ptr.cpp)
+add_library(ptr MODULE src/ptr/ptr.cpp)
 target_link_swipl(ptr)
 
-add_library(cairo MODULE cairo.cpp)
+add_library(cairo MODULE src/cairo/cairo.cpp)
 target_link_swipl(cairo)
 target_link_libraries(cairo PRIVATE PkgConfig::CAIRO)
+target_include_directories(cairo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/ptr)
 
 # Place the shared objects directly into the pack's lib/<arch> directory in the
 # source tree.  This is where use_foreign_library(foreign(sdl)) and

@@ -16,11 +16,13 @@
 // purpose is lifetime safety + carrying the address across the Prolog/C
 // boundary without exposing it as a raw integer.
 //
-// This header is included by both sdl.cpp and cairo.cpp.  The blob type
-// is shared at runtime via PL_find_blob_type("ptr_blob"): whichever .so
-// loads first registers the type, the other finds it by name.  Both
-// modules then see the same PL_blob_t* pointer, so cast_ex (which
-// compares by pointer identity) succeeds across modules.
+// This header is included by the sdl extension (src/sdl/sdl_gpu.cpp,
+// src/sdl/sdl_render.cpp, src/sdl/sdl_surface.cpp) and the cairo extension
+// (src/cairo/cairo.cpp).  The blob type is shared at runtime via
+// PL_find_blob_type("ptr_blob"): whichever .so loads first registers the
+// type, the other finds it by name.  Both modules then see the same
+// PL_blob_t* pointer, so cast_ex (which compares by pointer identity)
+// succeeds across modules.
 // ---------------------------------------------------------------------------
 
 struct PtrBlob;

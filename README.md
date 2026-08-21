@@ -57,7 +57,19 @@ The library is then usable with `:- use_module(library(sdl)).`
 
 ```prolog
 :- use_module(library(sdl)).
+```
 
+This loads the entire API. The library is also modularized internally. You can load specific subsystems if you prefer a tighter namespace:
+
+- `:- use_module(library(sdl/init)).` (initialization)
+- `:- use_module(library(sdl/video)).` (windows)
+- `:- use_module(library(sdl/render)).` (2D renderer)
+- `:- use_module(library(sdl/events)).` (event polling)
+- `:- use_module(library(sdl/surface)).` (software surfaces)
+- `:- use_module(library(sdl/gpu)).` (SDL3 explicit GPU API)
+- `:- use_module(library(sdl/image)).` (SDL3_image)
+
+```prolog
 demo :-
     setup_call_cleanup(
         sdl_init([everything]),
