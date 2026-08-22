@@ -1,6 +1,6 @@
 name(sdl).
 title('SWI-Prolog bindings for SDL3').
-version('0.2.0').
+version('0.3.0').
 pack_version(2).
 author('kwon-young', 'https://github.com/kwon-young').
 maintainer('kwon-young', 'https://github.com/kwon-young').
