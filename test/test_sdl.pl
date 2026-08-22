@@ -1,12 +1,5 @@
 :- use_module(library(sdl)).
 
-% :- dynamic sample_image/1.
-% :- prolog_load_context(directory, Dir),
-%    directory_file_path(Dir, '../examples/DSC03094.JPG', Rel),
-%    absolute_file_name(Rel, Abs),
-%    atom_string(Abs, Str),
-%    assertz(sample_image(Str)).
-
 :- dynamic shader_dir/1.
 :- prolog_load_context(directory, Dir),
    directory_file_path(Dir, '../shaders', ShaderDir),
@@ -55,53 +48,53 @@ test(setrendervsync, [
                sdl_destroywindow(Window), sdl_quit))]) :-
    sdl_setrendervsync(Renderer, 1).
 
-% test(imgload) :-
-%    sample_image(Img),
-%    setup_call_cleanup(
-%       sdl_init([everything]),
-%       setup_call_cleanup(
-%          img_load(Surface, Img),
-%          true,
-%          sdl_destroysurface(Surface)),
-%       sdl_quit).
+test(imgload) :-
+   Img = "../test/images.jpg",
+   setup_call_cleanup(
+      sdl_init([everything]),
+      setup_call_cleanup(
+         img_load(Surface, Img),
+         true,
+         sdl_destroysurface(Surface)),
+      sdl_quit).
 
-% test(createtexturefromsurface, [
-%    setup((
-%       sdl_init([everything]),
-%       sdl_createwindow(Window, "", 400, 600, [opengl]),
-%       sdl_createrenderer(Renderer, Window, null),
-%       sample_image(Img),
-%       img_load(Surface, Img))),
-%    cleanup((
-%       sdl_destroysurface(Surface),
-%       sdl_destroyrenderer(Renderer),
-%       sdl_destroywindow(Window),
-%       sdl_quit))]) :-
-%    setup_call_cleanup(
-%       sdl_createtexturefromsurface(Texture, Renderer, Surface),
-%       true,
-%       sdl_destroytexture(Texture)).
+test(createtexturefromsurface, [
+   setup((
+      sdl_init([everything]),
+      sdl_createwindow(Window, "", 400, 600, [opengl]),
+      sdl_createrenderer(Renderer, Window, null),
+      Img = "../test/images.jpg",
+      img_load(Surface, Img))),
+   cleanup((
+      sdl_destroysurface(Surface),
+      sdl_destroyrenderer(Renderer),
+      sdl_destroywindow(Window),
+      sdl_quit))]) :-
+   setup_call_cleanup(
+      sdl_createtexturefromsurface(Texture, Renderer, Surface),
+      true,
+      sdl_destroytexture(Texture)).
 
-% test(rendercleartexturepresent, [
-%    forall((
-%       member(Srcrect, [rect(0, 0, 1000, 1000), null]),
-%       member(Dstrect, [rect(0, 0, 200, 300), null]))),
-%    setup((
-%       sdl_init([everything]),
-%       sdl_createwindow(Window, "", 400, 600, [opengl]),
-%       sdl_createrenderer(Renderer, Window, null),
-%       sample_image(Img),
-%       img_load(Surface, Img),
-%       sdl_createtexturefromsurface(Texture, Renderer, Surface))),
-%    cleanup((
-%       sdl_destroytexture(Texture),
-%       sdl_destroysurface(Surface),
-%       sdl_destroyrenderer(Renderer),
-%       sdl_destroywindow(Window),
-%       sdl_quit))]) :-
-%    sdl_renderclear(Renderer),
-%    sdl_rendertexture(Renderer, Texture, Srcrect, Dstrect),
-%    sdl_renderpresent(Renderer).
+test(rendercleartexturepresent, [
+   forall((
+      member(Srcrect, [rect(0, 0, 1000, 1000), null]),
+      member(Dstrect, [rect(0, 0, 200, 300), null]))),
+   setup((
+      sdl_init([everything]),
+      sdl_createwindow(Window, "", 400, 600, [opengl]),
+      sdl_createrenderer(Renderer, Window, null),
+      Img = "../test/images.jpg",
+      img_load(Surface, Img),
+      sdl_createtexturefromsurface(Texture, Renderer, Surface))),
+   cleanup((
+      sdl_destroytexture(Texture),
+      sdl_destroysurface(Surface),
+      sdl_destroyrenderer(Renderer),
+      sdl_destroywindow(Window),
+      sdl_quit))]) :-
+   sdl_renderclear(Renderer),
+   sdl_rendertexture(Renderer, Texture, Srcrect, Dstrect),
+   sdl_renderpresent(Renderer).
 
 % TODO: this test only checks the empty-queue case (expects fail). It should
 % also generate real events and assert on Event.type (atom, not string) to
