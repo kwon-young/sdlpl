@@ -1,4 +1,4 @@
-name(sdl).
+name(sdlpl).
 title('SWI-Prolog bindings for SDL3').
 version('0.3.0').
 pack_version(2).
